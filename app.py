@@ -138,46 +138,46 @@ selected_negeri = st.selectbox(
 search_query = st.text_input("Enter Name, IC, or Phone to search:")
 
 if search_query:
-    # Check quota limit for non-admin users
-    if not st.session_state["is_admin"]:
-        if st.session_state["usage"].get(current_user, 0) >= st.session_state["quotas"].get(current_user, 500):
-            st.error("You have exceeded your monthly search quota limit. Please contact the administrator.")
-            st.stop()
-        else:
-            st.session_state["usage"][current_user] += 1
-
-    safe_query = search_query.replace("'", "\\'")
-    
-    # Construct BigQuery SQL Statement
-    sql_query = f"""
-    SELECT * FROM `mysej-510709.mysej.combined_data`
-    WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%'
-       OR LOWER(nokp) LIKE '%{safe_query.lower()}%'
-       OR LOWER(tel1) LIKE '%{safe_query.lower()}%')
-"""
-
-if selected_negeri != "ALL":
-    sql_query += f" AND UPPER(negeri) = '{selected_negeri}'"
-    
-sql_query += " LIMIT 100"
-
-try:
-        with st.spinner("Querying BigQuery dataset..."):
-            query_job = client.query(sql_query)
-            df = query_job.to_dataframe()
-
-            if not df.empty:
-                hidden_columns = [
-                    'jantina', 'Kodlokaliti', 'NamaParlimen', 
-                    'NamaDM', 'NameDUN', 'KategoriPemilih', 
-                    'nokp', 'name_tel'
-                ]
-                display_columns = [col for col in df.columns if col not in hidden_columns]
-                filtered_df = df[display_columns]
-
-                st.success(f"Found {len(filtered_df)} matching records.")
-                st.dataframe(filtered_df, use_container_width=True)
+        # Check quota limit for non-admin users
+        if not st.session_state["is_admin"]:
+            if st.session_state["usage"].get(current_user, 0) >= st.session_state["quotas"].get(current_user, 500):
+                st.error("You have exceeded your monthly search quota limit. Please contact the administrator.")
+                st.stop()
             else:
-                st.info("No matching records found in the database.")
-except Exception as e:
-        st.error(f"An error occurred while executing the query: {e}")
+                st.session_state["usage"][current_user] += 1
+
+        safe_query = search_query.replace("'", "\\'")
+        
+        # Construct BigQuery SQL Statement
+        sql_query = f"""
+            SELECT * FROM `mysej-510709.mysej.combined_data`
+            WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%'
+               OR LOWER(nokp) LIKE '%{safe_query.lower()}%'
+               OR LOWER(tel1) LIKE '%{safe_query.lower()}%')
+        """
+        
+        if selected_negeri != "ALL":
+            sql_query += f" AND UPPER(negeri) = '{selected_negeri}'"
+            
+        sql_query += " LIMIT 100"
+
+        try:
+            with st.spinner("Querying BigQuery dataset..."):
+                query_job = client.query(sql_query)
+                df = query_job.to_dataframe()
+
+                if not df.empty:
+                    hidden_columns = [
+                        'jantina', 'Kodlokaliti', 'NamaParlimen', 
+                        'NamaDM', 'NameDUN', 'KategoriPemilih', 
+                        'nokp', 'name_tel'
+                    ]
+                    display_columns = [col for col in df.columns if col not in hidden_columns]
+                    filtered_df = df[display_columns]
+
+                    st.success(f"Found {len(filtered_df)} matching records.")
+                    st.dataframe(filtered_df, use_container_width=True)
+                else:
+                    st.info("No matching records found in the database.")
+        except Exception as e:
+            st.error(f"An error occurred while executing the query: {e}")
