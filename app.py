@@ -127,18 +127,18 @@ else:
 
 # 6. Search Panel
 st.title("🔍 Elite Search Engine")
-st.write("Search across your BigQuery database records securely.")
+st.write("Search across your whole Malaysia database records securely.")
 
-# Negeri Filter dropdown
+# 5. Default Negeri selection as Klang Valley (Kuala Lumpur & Selangor)
 selected_negeri = st.selectbox(
     "Select or filter by Negeri (State):", 
-    ["ALL", "SELANGOR", "KUALA LUMPUR", "JOHOR", "PENANG", "PERAK", "MELAKA", "NEGERI SEMBILAN", "PAHANG", "KELANTAN", "TERENGGANU", "KEDAH", "PERLIS", "SABAH", "SARAWAK"]
+    ["KLANG VALLEY (KUALA LUMPUR & SELANGOR)", "ALL", "SELANGOR", "KUALA LUMPUR", "JOHOR", "PENANG", "PERAK", "MELAKA", "NEGERI SEMBILAN", "PAHANG", "KELANTAN", "TERENGGANU", "KEDAH", "PERLIS", "SABAH", "SARAWAK"]
 )
 
-# Match Type Selection (Exact vs Similar)
+# 4. Default setting is Exact Match
 match_type = st.radio(
     "Select Search Match Type:", 
-    ["Similar (Partial Match)", "Exact Match"], 
+    ["Exact Match", "Similar (Partial Match)"], 
     horizontal=True
 )
 
@@ -154,8 +154,8 @@ if search_query:
             st.session_state["usage"][current_user] += 1
 
     safe_query = search_query.replace("'", "\\'")
-
-# Construct BigQuery SQL Statement based on Match Type
+    
+    # Construct BigQuery SQL Statement based on Match Type
     if match_type == "Exact Match":
         sql_query = f"""
             SELECT * FROM `mysej-510709.mysej.combined_data`
@@ -173,8 +173,10 @@ if search_query:
             )
         """
     
-    # Apply Negeri filter if selected
-    if selected_negeri != "ALL":
+    # Apply Negeri filter logic
+    if selected_negeri == "KLANG VALLEY (KUALA LUMPUR & SELANGOR)":
+        sql_query += f" AND UPPER(negeri) IN ('KUALA LUMPUR', 'SELANGOR')"
+    elif selected_negeri != "ALL":
         sql_query += f" AND UPPER(negeri) = '{selected_negeri}'"
         
     sql_query += " LIMIT 100"
@@ -185,24 +187,27 @@ if search_query:
             df = query_job.to_dataframe()
 
             if not df.empty:
+                # 1. Ensure hidden columns are properly dropped from the dataframe
                 hidden_columns = [
                     'jantina', 'Kodlokaliti', 'NamaParlimen', 
-                    'NamaDM', 'NameDUN', 'KategoriPemilih', 
-                    'nokp', 'name_tel'
+                    'NamaDM', 'NameDUN', 'KategoriPemilih', 'name_tel'
                 ]
+                # Note: 'nokp' is kept in dataframe so it can be arranged as the first column
                 
-                # Get all columns that are not hidden
                 available_cols = [col for col in df.columns if col not in hidden_columns]
                 
-                # Force 'Nama' and 'tel1' to be the first two columns if they exist
+                # 2. Force order: IC (nokp) first, followed by Name (Nama), tel1, and the rest
                 front_cols = []
-                if 'Nama' in available_cols:
-                    front_cols.append('Nama')
-                if 'tel1' in available_cols:
-                    front_cols.append('tel1')
-                    
+                for col_name in ['nokp', 'Nama', 'tel1']:
+                    if col_name in available_cols:
+                        front_cols.append(col_name)
+                        
                 display_cols = front_cols + [col for col in available_cols if col not in front_cols]
                 filtered_df = df[display_cols]
+
+                # 3. Sort by IC (nokp) ascending if column exists
+                if 'nokp' in filtered_df.columns:
+                    filtered_df = filtered_df.sort_values(by='nokp', ascending=True)
 
                 st.success(f"Found {len(filtered_df)} matching records.")
                 st.dataframe(filtered_df, use_container_width=True)
