@@ -14,31 +14,20 @@ import os
 
 def get_bq_client():
     if "gcp_service_account" in st.secrets:
-        # Convert Streamlit secrets to a standard dictionary
-        service_account_info = dict(st.secrets["gcp_service_account"])
+        # Load credentials dict from st.secrets
+        creds_dict = dict(st.secrets["gcp_service_account"])
         
-        # Ensure the private key has correct newline characters
-        if "private_key" in service_account_info:
-            service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
-
-        # Write credentials to a secure temporary file on the server runtime
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as temp_file:
-            json.dump(service_account_info, temp_file)
-            temp_file_path = temp_file.name
-
-        # Load using standard file method which avoids all TOML string parsing errors
-        client = bigquery.Client.from_service_account_json(temp_file_path)
-        
-        # Clean up temporary file reference
-        try:
-            os.remove(temp_file_path)
-        except Exception:
-            pass
+        # Normalize private key newlines and whitespace
+        if "private_key" in creds_dict:
+            pk = creds_dict["private_key"]
+            pk = pk.replace("\\\\n", "\n").replace("\\n", "\n").strip()
+            creds_dict["private_key"] = pk
             
-        return client
+        credentials = service_account.Credentials.from_service_account_info(creds_dict)
+        return bigquery.Client(credentials=credentials, project=credentials.project_id)
     else:
         return bigquery.Client.from_service_account_json("credentials.json")
-
+    
 client = get_bq_client()
 
 # 3. User Credentials & Session State Setup
