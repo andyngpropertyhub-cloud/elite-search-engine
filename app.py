@@ -161,7 +161,7 @@ if selected_negeri != "ALL":
     
 sql_query += " LIMIT 100"
 
-    try:
+try:
         with st.spinner("Querying BigQuery dataset..."):
             query_job = client.query(sql_query)
             df = query_job.to_dataframe()
