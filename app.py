@@ -8,19 +8,34 @@ import datetime
 st.set_page_config(page_title="Elite Search Engine", layout="wide")
 
 # 2. Secure BigQuery Client Initialization
+import json
+import tempfile
+import os
+
 def get_bq_client():
     if "gcp_service_account" in st.secrets:
-        secrets_dict = dict(st.secrets["gcp_service_account"])
+        # Convert Streamlit secrets to a standard dictionary
+        service_account_info = dict(st.secrets["gcp_service_account"])
         
-        # Fix newline formatting if it was pasted as a single line or escaped string
-        if "private_key" in secrets_dict:
-            pk = secrets_dict["private_key"]
-            # Replace literal backslash-n with actual newlines if present
-            pk = pk.replace("\\n", "\n")
-            secrets_dict["private_key"] = pk
+        # Ensure the private key has correct newline characters
+        if "private_key" in service_account_info:
+            service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
+
+        # Write credentials to a secure temporary file on the server runtime
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as temp_file:
+            json.dump(service_account_info, temp_file)
+            temp_file_path = temp_file.name
+
+        # Load using standard file method which avoids all TOML string parsing errors
+        client = bigquery.Client.from_service_account_json(temp_file_path)
+        
+        # Clean up temporary file reference
+        try:
+            os.remove(temp_file_path)
+        except Exception:
+            pass
             
-        credentials = service_account.Credentials.from_service_account_info(secrets_dict)
-        return bigquery.Client(credentials=credentials, project=credentials.project_id)
+        return client
     else:
         return bigquery.Client.from_service_account_json("credentials.json")
 
