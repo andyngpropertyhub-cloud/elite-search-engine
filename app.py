@@ -19,14 +19,20 @@ def get_bq_client():
         with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".json") as temp_file:
             temp_file.write(json_bytes)
             temp_file_path = temp_file.name
-        client_obj = bigquery.Client.from_service_account_json(temp_file_path)
+        
+        # Pass location if your dataset is not in US (e.g., location="asia-southeast1")
+        client_obj = bigquery.Client.from_service_account_json(
+            temp_file_path, 
+            location="asia-southeast1"
+        )
+        
         try:
             os.remove(temp_file_path)
         except Exception:
             pass
         return client_obj
     else:
-        return bigquery.Client.from_service_account_json("credentials.json")
+        return bigquery.Client.from_service_account_json("credentials.json", location="asia-southeast1")
 
 # Global client initialization
 client = get_bq_client()
