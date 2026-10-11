@@ -8,27 +8,32 @@ import datetime
 st.set_page_config(page_title="Elite Search Engine", layout="wide")
 
 # 2. Secure BigQuery Client Initialization
+import base64
 import json
 import tempfile
 import os
 
 def get_bq_client():
-    if "gcp_service_account" in st.secrets:
-        # Load credentials dict from st.secrets
-        creds_dict = dict(st.secrets["gcp_service_account"])
+    if "GCP_CREDENTIALS_B64" in st.secrets:
+        # Decode the base64 string back into standard JSON bytes
+        json_bytes = base64.b64decode(st.secrets["GCP_CREDENTIALS_B64"])
         
-        # Normalize private key newlines and whitespace
-        if "private_key" in creds_dict:
-            pk = creds_dict["private_key"]
-            pk = pk.replace("\\\\n", "\n").replace("\\n", "\n").strip()
-            creds_dict["private_key"] = pk
+        # Write to a temporary file so Google's file loader handles it natively
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".json") as temp_file:
+            temp_file.write(json_bytes)
+            temp_file_path = temp_file.name
+
+        client = bigquery.Client.from_service_account_json(temp_file_path)
+        
+        try:
+            os.remove(temp_file_path)
+        except Exception:
+            pass
             
-        credentials = service_account.Credentials.from_service_account_info(creds_dict)
-        return bigquery.Client(credentials=credentials, project=credentials.project_id)
+        return client
     else:
+        # Fallback for local testing
         return bigquery.Client.from_service_account_json("credentials.json")
-    
-client = get_bq_client()
 
 # 3. User Credentials & Session State Setup
 if "authenticated" not in st.session_state:
