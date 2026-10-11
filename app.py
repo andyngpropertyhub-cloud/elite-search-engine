@@ -10,12 +10,14 @@ st.set_page_config(page_title="Elite Search Engine", layout="wide")
 # 2. Secure BigQuery Client Initialization
 def get_bq_client():
     if "gcp_service_account" in st.secrets:
-        # Create a mutable copy of the secrets dictionary
         secrets_dict = dict(st.secrets["gcp_service_account"])
         
-        # Ensure private_key is properly encoded as bytes for the cryptographic library
+        # Fix newline formatting if it was pasted as a single line or escaped string
         if "private_key" in secrets_dict:
-            secrets_dict["private_key"] = secrets_dict["private_key"].encode("utf-8")
+            pk = secrets_dict["private_key"]
+            # Replace literal backslash-n with actual newlines if present
+            pk = pk.replace("\\n", "\n")
+            secrets_dict["private_key"] = pk
             
         credentials = service_account.Credentials.from_service_account_info(secrets_dict)
         return bigquery.Client(credentials=credentials, project=credentials.project_id)
