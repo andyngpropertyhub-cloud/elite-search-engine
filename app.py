@@ -150,16 +150,16 @@ if search_query:
     
     # Construct BigQuery SQL Statement
     sql_query = f"""
-        SELECT * FROM `mysej-510709.mysej.combined_data`
-        WHERE (LOWER(name) LIKE '%{safe_query.lower()}%'
-           OR LOWER(nokp) LIKE '%{safe_query.lower()}%'
-           OR LOWER(tel1) LIKE '%{safe_query.lower()}%')
-    """
+    SELECT * FROM `mysej-510709.mysej.combined_data`
+    WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%'
+       OR LOWER(nokp) LIKE '%{safe_query.lower()}%'
+       OR LOWER(tel1) LIKE '%{safe_query.lower()}%')
+"""
+
+if selected_negeri != "ALL":
+    sql_query += f" AND UPPER(negeri) = '{selected_negeri}'"
     
-    if selected_negeri != "ALL":
-        sql_query += f" AND UPPER(negeri) = '{selected_negeri}'"
-        
-    sql_query += " LIMIT 100"
+sql_query += " LIMIT 100"
 
     try:
         with st.spinner("Querying BigQuery dataset..."):
