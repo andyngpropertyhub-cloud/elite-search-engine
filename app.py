@@ -119,7 +119,7 @@ else:
         
         st.markdown("---")
 
-    # 6. Search Panel
+   # 6. Search Panel
     st.title("🔍 Elite Search Engine")
     st.write("Search across your BigQuery database records securely.")
 
@@ -136,16 +136,14 @@ else:
 
         safe_query = search_query.replace("'", "\\'")
         
-        # Construct BigQuery SQL Statement (Adjust table name as needed)
-        # Replace the dynamic query block with this safer version
-        # Adjust table name and column names to match your actual schema (e.g., name, ic, phone)
-sql_query = f"""
-    SELECT * FROM `andyngpropertyhub-cloud.elite_search.dataset_table`
-    WHERE LOWER(name) LIKE '%{safe_query.lower()}%'
-       OR LOWER(nokp) LIKE '%{safe_query.lower()}%'
-       OR LOWER(phone) LIKE '%{safe_query.lower()}%'
-    LIMIT 100
-"""
+        # Construct BigQuery SQL Statement (Properly indented)
+        sql_query = f"""
+            SELECT * FROM `andyngpropertyhub-cloud.elite_search.dataset_table`
+            WHERE LOWER(name) LIKE '%{safe_query.lower()}%'
+               OR LOWER(nokp) LIKE '%{safe_query.lower()}%'
+               OR LOWER(phone) LIKE '%{safe_query.lower()}%'
+            LIMIT 100
+        """
 
         try:
             with st.spinner("Querying BigQuery dataset..."):
