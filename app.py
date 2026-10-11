@@ -197,3 +197,27 @@ if search_query:
                 st.info("No matching records found in the database.")
     except Exception as e:
         st.error(f"An error occurred while executing the query: {e}")
+
+        hidden_columns = [
+                'jantina', 'Kodlokaliti', 'NamaParlimen', 
+                'NamaDM', 'NameDUN', 'KategoriPemilih', 
+                'nokp', 'name_tel'
+            ]
+            
+            # Get all columns that are not hidden
+        available_cols = [col for col in df.columns if col not in hidden_columns]
+            
+            # Force 'Nama' and 'tel1' to be the first two columns if they exist in the dataframe
+        front_cols = []
+        if 'Nama' in available_cols:
+                front_cols.append('Nama')
+            if 'tel1' in available_cols:
+                front_cols.append('tel1')
+                
+            # Combine front columns with the rest of the available columns (avoiding duplicates)
+        display_cols = front_cols + [col for col in available_cols if col not in front_cols]
+            
+        filtered_df = df[display_cols]
+
+        st.success(f"Found {len(filtered_df)} matching records.")
+        st.dataframe(filtered_df, use_container_width=True)
