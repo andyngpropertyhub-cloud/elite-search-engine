@@ -15,25 +15,21 @@ import os
 
 def get_bq_client():
     if "GCP_CREDENTIALS_B64" in st.secrets:
-        # Decode the base64 string back into standard JSON bytes
         json_bytes = base64.b64decode(st.secrets["GCP_CREDENTIALS_B64"])
-        
-        # Write to a temporary file so Google's file loader handles it natively
         with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".json") as temp_file:
             temp_file.write(json_bytes)
             temp_file_path = temp_file.name
-
-        client = bigquery.Client.from_service_account_json(temp_file_path)
-        
+        client_obj = bigquery.Client.from_service_account_json(temp_file_path)
         try:
             os.remove(temp_file_path)
         except Exception:
             pass
-            
-        return client
+        return client_obj
     else:
-        # Fallback for local testing
         return bigquery.Client.from_service_account_json("credentials.json")
+
+# Global client initialization
+client = get_bq_client()
 
 # 3. User Credentials & Session State Setup
 if "authenticated" not in st.session_state:
