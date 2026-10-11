@@ -150,7 +150,7 @@ if search_query:
     
     # Construct BigQuery SQL Statement
     sql_query = f"""
-        SELECT * FROM `mysej-510709.elite_search.combined_data`
+        SELECT * FROM `mysej-510709.mysej.combined_data`
         WHERE (LOWER(name) LIKE '%{safe_query.lower()}%'
            OR LOWER(nokp) LIKE '%{safe_query.lower()}%'
            OR LOWER(tel1) LIKE '%{safe_query.lower()}%')
