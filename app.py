@@ -137,7 +137,7 @@ else:
         safe_query = search_query.replace("'", "\\'")
         
        # Construct BigQuery SQL Statement
-   search_query = st.text_input("Enter Name, IC, or Phone to search:")
+    
 
 if search_query:
     safe_query = search_query.replace("'", "\\'")
