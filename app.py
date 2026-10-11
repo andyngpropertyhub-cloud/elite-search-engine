@@ -154,21 +154,23 @@ if search_query:
             st.session_state["usage"][current_user] += 1
 
     safe_query = search_query.replace("'", "\\'")
-    
-    # Construct BigQuery SQL Statement based on Match Type
+
+# Construct BigQuery SQL Statement based on Match Type
     if match_type == "Exact Match":
         sql_query = f"""
             SELECT * FROM `mysej-510709.mysej.combined_data`
             WHERE (LOWER(Nama) = '{safe_query.lower()}'
                OR LOWER(nokp) = '{safe_query.lower()}'
-               OR LOWER(tel1) = '{safe_query.lower()}')
+               OR LOWER(tel1) = '{safe_query.lower()}'
+            )
         """
     else:
         sql_query = f"""
             SELECT * FROM `mysej-510709.mysej.combined_data`
             WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%'
                OR LOWER(nokp) LIKE '%{safe_query.lower()}%'
-               OR LOWER(tel1) LIKE '%{safe_query.lower()}%')
+               OR LOWER(tel1) LIKE '%{safe_query.lower()}%'
+            )
         """
     
     # Apply Negeri filter if selected
@@ -188,8 +190,19 @@ if search_query:
                     'NamaDM', 'NameDUN', 'KategoriPemilih', 
                     'nokp', 'name_tel'
                 ]
-                display_columns = [col for col in df.columns if col not in hidden_columns]
-                filtered_df = df[display_columns]
+                
+                # Get all columns that are not hidden
+                available_cols = [col for col in df.columns if col not in hidden_columns]
+                
+                # Force 'Nama' and 'tel1' to be the first two columns if they exist
+                front_cols = []
+                if 'Nama' in available_cols:
+                    front_cols.append('Nama')
+                if 'tel1' in available_cols:
+                    front_cols.append('tel1')
+                    
+                display_cols = front_cols + [col for col in available_cols if col not in front_cols]
+                filtered_df = df[display_cols]
 
                 st.success(f"Found {len(filtered_df)} matching records.")
                 st.dataframe(filtered_df, use_container_width=True)
@@ -197,27 +210,3 @@ if search_query:
                 st.info("No matching records found in the database.")
     except Exception as e:
         st.error(f"An error occurred while executing the query: {e}")
-
-        hidden_columns = [
-                'jantina', 'Kodlokaliti', 'NamaParlimen', 
-                'NamaDM', 'NameDUN', 'KategoriPemilih', 
-                'nokp', 'name_tel'
-            ]
-            
-            # Get all columns that are not hidden
-        available_cols = [col for col in df.columns if col not in hidden_columns]
-            
-            # Force 'Nama' and 'tel1' to be the first two columns if they exist in the dataframe
-        front_cols = []
-        if 'Nama' in available_cols:
-                front_cols.append('Nama')
-            if 'tel1' in available_cols:
-                front_cols.append('tel1')
-                
-            # Combine front columns with the rest of the available columns (avoiding duplicates)
-        display_cols = front_cols + [col for col in available_cols if col not in front_cols]
-            
-        filtered_df = df[display_cols]
-
-        st.success(f"Found {len(filtered_df)} matching records.")
-        st.dataframe(filtered_df, use_container_width=True)
