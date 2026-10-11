@@ -137,6 +137,12 @@ else:
         safe_query = search_query.replace("'", "\\'")
         
        # Construct BigQuery SQL Statement
+   search_query = st.text_input("Enter Name, IC, or Phone to search:")
+
+if search_query:
+    safe_query = search_query.replace("'", "\\'")
+    
+    # Construct BigQuery SQL Statement
     sql_query = f"""
         SELECT * FROM `mysej-510709.elite_search.combined_data`
         WHERE (LOWER(name) LIKE '%{safe_query.lower()}%'
@@ -155,13 +161,11 @@ else:
             df = query_job.to_dataframe()
 
             if not df.empty:
-                # 7. Column Hiding Privacy Filters
                 hidden_columns = [
                     'jantina', 'Kodlokaliti', 'NamaParlimen', 
                     'NamaDM', 'NameDUN', 'KategoriPemilih', 
                     'nokp', 'name_tel'
                 ]
-                
                 display_columns = [col for col in df.columns if col not in hidden_columns]
                 filtered_df = df[display_columns]
 
