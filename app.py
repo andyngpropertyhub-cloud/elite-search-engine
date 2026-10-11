@@ -20,10 +20,10 @@ def get_bq_client():
             temp_file.write(json_bytes)
             temp_file_path = temp_file.name
         
-        # Pass location if your dataset is not in US (e.g., location="asia-southeast1")
+        # Set location back to US
         client_obj = bigquery.Client.from_service_account_json(
             temp_file_path, 
-            location="asia-southeast1"
+            location="US"
         )
         
         try:
@@ -32,7 +32,7 @@ def get_bq_client():
             pass
         return client_obj
     else:
-        return bigquery.Client.from_service_account_json("credentials.json", location="asia-southeast1")
+        return bigquery.Client.from_service_account_json("credentials.json", location="US")
 
 # Global client initialization
 client = get_bq_client()
