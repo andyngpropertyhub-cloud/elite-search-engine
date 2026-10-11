@@ -120,26 +120,26 @@ else:
         st.markdown("---")
 
    # 6. Search Panel
-    st.title("🔍 Elite Search Engine")
-    st.write("Search across your BigQuery database records securely.")
+st.title("🔍 Elite Search Engine")
+st.write("Search across your BigQuery database records securely.")
 
-    search_query = st.text_input("Enter Name, IC, Phone, or Keyword to search:")
+# Negeri Filter dropdown
+selected_negeri = st.selectbox(
+    "Select or filter by Negeri (State):", 
+    ["ALL", "SELANGOR", "KUALA LUMPUR", "JOHOR", "PENANG", "PERAK", "MELAKA", "NEGERI SEMBILAN", "PAHANG", "KELANTAN", "TERENGGANU", "KEDAH", "PERLIS", "SABAH", "SARAWAK"]
+)
 
-    if search_query:
-        # Check quota limit for non-admin users
-        if not st.session_state["is_admin"]:
-            if st.session_state["usage"].get(current_user, 0) >= st.session_state["quotas"].get(current_user, 500):
-                st.error("You have exceeded your monthly search quota limit. Please contact the administrator.")
-                st.stop()
-            else:
-                st.session_state["usage"][current_user] += 1
-
-        safe_query = search_query.replace("'", "\\'")
-        
-       # Construct BigQuery SQL Statement
-    
+search_query = st.text_input("Enter Name, IC, or Phone to search:")
 
 if search_query:
+    # Check quota limit for non-admin users
+    if not st.session_state["is_admin"]:
+        if st.session_state["usage"].get(current_user, 0) >= st.session_state["quotas"].get(current_user, 500):
+            st.error("You have exceeded your monthly search quota limit. Please contact the administrator.")
+            st.stop()
+        else:
+            st.session_state["usage"][current_user] += 1
+
     safe_query = search_query.replace("'", "\\'")
     
     # Construct BigQuery SQL Statement
