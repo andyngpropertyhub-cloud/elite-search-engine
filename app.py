@@ -179,5 +179,5 @@ try:
                 st.dataframe(filtered_df, use_container_width=True)
             else:
                 st.info("No matching records found in the database.")
-    except Exception as e:
+except Exception as e:
         st.error(f"An error occurred while executing the query: {e}")
