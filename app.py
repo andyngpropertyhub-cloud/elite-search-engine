@@ -1,141 +1,75 @@
 import streamlit as st
 from google.cloud import bigquery
-from google.oauth2 import service_account
-import pandas as pd
-import datetime
-
-# 1. Page Configuration
-st.set_page_config(page_title="Elite Search Engine", layout="wide")
-
-# 2. Secure BigQuery Client Initialization
 import base64
-import json
 import tempfile
 import os
+import datetime
 
-def get_bq_client():
-    if "GCP_CREDENTIALS_B64" in st.secrets:
-        json_bytes = base64.b64decode(st.secrets["GCP_CREDENTIALS_B64"])
-        with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".json") as temp_file:
-            temp_file.write(json_bytes)
-            temp_file_path = temp_file.name
-        
-        # Set location back to US
-        client_obj = bigquery.Client.from_service_account_json(
-            temp_file_path, 
-            location="US"
-        )
-        
-        try:
-            os.remove(temp_file_path)
-        except Exception:
-            pass
-        return client_obj
-    else:
-        return bigquery.Client.from_service_account_json("credentials.json", location="US")
+# Page Configuration
+st.set_page_config(page_title="Elite Search Engine", page_icon="🔍", layout="wide")
 
-# Global client initialization
-client = get_bq_client()
-
-# 3. User Credentials & Session State Setup
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-if "username" not in st.session_state:
-    st.session_state["username"] = ""
+# Initialize Session State for Usage/Admin if not present
+if "usage" not in st.session_state:
+    st.session_state["usage"] = {}
+if "quotas" not in st.session_state:
+    st.session_state["quotas"] = {}
 if "is_admin" not in st.session_state:
     st.session_state["is_admin"] = False
-if "quotas" not in st.session_state:
-    # Default monthly search quota tracking
-    st.session_state["quotas"] = {
-        "admin": 9999,
-        "rex": 500,
-        "daniel": 500,
-        "eric": 500,
-        "alex": 500,
-        "tommy": 500,
-        "kokhing": 500,
-        "tony": 500,
-        "user1": 500,
-        "user2": 500
-    }
-if "usage" not in st.session_state:
-    st.session_state["usage"] = {user: 0 for user in st.session_state["quotas"]}
+if "user_logs" not in st.session_state:
+    st.session_state["user_logs"] = []
 
-# Simple User Database (Username: Password)
-USERS = {
-    "admin": "admin123",
-    "rex": "rex123",
-    "daniel": "daniel123",
-    "eric": "eric123",
-    "alex": "alex123",
-    "tommy": "tommy123",
-    "kokhing": "kokhing123",
-    "tony": "tony123",
-    "user1": "pass123",
-    "user2": "pass123"
-}
+# Mock Current User for demonstration
+current_user = st.text_input("Username / ID:", value="user_default")
 
-# 4. Login Screen Handler
-def login_screen():
-    st.title("🔐 Elite Search Engine - Login")
-    with st.form("login_form"):
-        username_input = st.text_input("Username").strip().lower()
-        password_input = st.text_input("Password", type="password")
-        submit_button = st.form_submit_button("Login")
-        
-        if submit_button:
-            if username_input in USERS and USERS[username_input] == password_input:
-                st.session_state["authenticated"] = True
-                st.session_state["username"] = username_input
-                st.session_state["is_admin"] = (username_input == "admin")
-                st.success(f"Welcome back, {username_input}!")
-                st.rerun()
-            else:
-                st.error("Invalid username or password.")
+# Admin Toggle (For testing logs & usage)
+st.sidebar.title("Admin Controls")
+st.session_state["is_admin"] = st.sidebar.checkbox("Enable Admin Mode", value=st.session_state["is_admin"])
 
-if not st.session_state["authenticated"]:
-    login_screen()
-else:
-    # 5. Main Application Interface
-    st.sidebar.title(f"👤 User: {st.session_state['username'].capitalize()}")
-    
-    if st.sidebar.button("Logout"):
-        st.session_state["authenticated"] = False
-        st.session_state["username"] = ""
-        st.session_state["is_admin"] = False
-        st.rerun()
-
-    current_user = st.session_state["username"]
-    
-    # Display Quota Tracker in Sidebar
-    if not st.session_state["is_admin"]:
-        used = st.session_state["usage"].get(current_user, 0)
-        limit = st.session_state["quotas"].get(current_user, 500)
-        st.sidebar.metric(label="Monthly Search Quota", value=f"{used} / {limit}")
-
-    # Admin Dashboard Section
-    if st.session_state["is_admin"] and st.sidebar.checkbox("🛠️ Open Admin Dashboard"):
-        st.subheader("Admin Control Panel")
-        st.write("Manage user search quotas and settings:")
-        
-        for u in st.session_state["quotas"]:
-            if u != "admin":
-                new_limit = st.sidebar.number_input(f"Quota for {u}", value=st.session_state["quotas"][u], key=f"quota_{u}")
-                st.session_state["quotas"][u] = new_limit
-        
-        st.markdown("---")
+# 1. Birthday Banner on Front Page
+today = datetime.date.today()
+# Example birthday check or toggle/banner display
+st.markdown(
+    """
+    <div style="background-color: #ffeb3b; padding: 10px; border-radius: 5px; text-align: center; color: #000; margin-bottom: 20px;">
+        🎉 <b>Happy Birthday to all users celebrating their special day this month!</b> Wishing you success and happiness! 🎂
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # 6. Search Panel
 st.title("🔍 Elite Search Engine")
-st.write("Search across your whole Malaysia database records securely.")
+st.write("Search across your BigQuery database records securely.")
 
-# 5. Default Negeri selection as Klang Valley (Kuala Lumpur & Selangor)
+# Admin Dashboard Section
+if st.session_state["is_admin"]:
+    st.subheader("📊 Admin Usage & User Logs Dashboard")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("### Monthly & Current Search Usage by User")
+        if st.session_state["usage"]:
+            usage_data = [{"User": u, "Searches Used": count} for u, count in st.session_state["usage"].items()]
+            st.dataframe(usage_data, use_container_width=True)
+            st.write(f"**Total Searches Across All Users:** {sum(st.session_state['usage'].values())}")
+        else:
+            st.info("No search usage recorded yet this month.")
+            
+    with col2:
+        st.write("### Recent Search Activity Logs")
+        if st.session_state["user_logs"]:
+            st.dataframe(st.session_state["user_logs"][-10:], use_container_width=True) # Show last 10 logs
+        else:
+            st.info("No activity logs recorded yet.")
+    st.markdown("---")
+
+# Negeri filter
 selected_negeri = st.selectbox(
     "Select or filter by Negeri (State):", 
     ["KLANG VALLEY (KUALA LUMPUR & SELANGOR)", "ALL", "SELANGOR", "KUALA LUMPUR", "JOHOR", "PENANG", "PERAK", "MELAKA", "NEGERI SEMBILAN", "PAHANG", "KELANTAN", "TERENGGANU", "KEDAH", "PERLIS", "SABAH", "SARAWAK"]
 )
 
-# 4. Default setting is Exact Match
+# Default setting is Exact Match
 match_type = st.radio(
     "Select Search Match Type:", 
     ["Exact Match", "Similar (Partial Match)"], 
@@ -151,7 +85,15 @@ if search_query:
             st.error("You have exceeded your monthly search quota limit. Please contact the administrator.")
             st.stop()
         else:
-            st.session_state["usage"][current_user] += 1
+            st.session_state["usage"][current_user] = st.session_state["usage"].get(current_user, 0) + 1
+
+    # Log the user search action
+    st.session_state["user_logs"].append({
+        "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "User": current_user,
+        "Query": search_query,
+        "Match Type": match_type
+    })
 
     safe_query = search_query.replace("'", "\\'")
     
@@ -160,7 +102,7 @@ if search_query:
         sql_query = f"""
             SELECT * FROM `mysej-510709.mysej.combined_data`
             WHERE (LOWER(Nama) = '{safe_query.lower()}'
-               OR LOWER(nokp) = '{safe_query.lower()}'
+               OR CAST(nokp AS STRING) = '{safe_query}'
                OR LOWER(tel1) = '{safe_query.lower()}'
             )
         """
@@ -168,7 +110,7 @@ if search_query:
         sql_query = f"""
             SELECT * FROM `mysej-510709.mysej.combined_data`
             WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%'
-               OR LOWER(nokp) LIKE '%{safe_query.lower()}%'
+               OR CAST(nokp AS STRING) LIKE '%{safe_query.lower()}%'
                OR LOWER(tel1) LIKE '%{safe_query.lower()}%'
             )
         """
@@ -181,22 +123,29 @@ if search_query:
         
     sql_query += " LIMIT 100"
 
+    # Initialize BigQuery Client (assuming function is defined in your script)
+    # client = get_bq_client()
+
     try:
         with st.spinner("Querying BigQuery dataset..."):
             query_job = client.query(sql_query)
             df = query_job.to_dataframe()
 
             if not df.empty:
-                # 1. Ensure hidden columns are properly dropped from the dataframe
+                # 1 & 2. Force IC/nokp to string format so it doesn't display as scientific notation (e.g. 6.20803E+11)
+                if 'nokp' in df.columns:
+                    df['nokp'] = df['nokp'].astype(str).str.replace(r'\.0$', '', regex=True)
+
+                # 3. Expanded hidden columns list (Including Unnamed__0, Jastina/jantina, NamaDUN, name_tel, etc.)
                 hidden_columns = [
-                    'jantina', 'Kodlokaliti', 'NamaParlimen', 
-                    'NamaDM', 'NameDUN', 'KategoriPemilih', 'name_tel'
+                    'jantina', 'Jastina', 'Kodlokaliti', 'NamaParlimen', 
+                    'NamaDM', 'NameDUN', 'NamaDUN', 'KategoriPemilih', 
+                    'name_tel', 'Unnamed__0'
                 ]
-                # Note: 'nokp' is kept in dataframe so it can be arranged as the first column
                 
                 available_cols = [col for col in df.columns if col not in hidden_columns]
                 
-                # 2. Force order: IC (nokp) first, followed by Name (Nama), tel1, and the rest
+                # Force order: nokp first, followed by Nama, tel1, and the rest
                 front_cols = []
                 for col_name in ['nokp', 'Nama', 'tel1']:
                     if col_name in available_cols:
@@ -205,7 +154,7 @@ if search_query:
                 display_cols = front_cols + [col for col in available_cols if col not in front_cols]
                 filtered_df = df[display_cols]
 
-                # 3. Sort by IC (nokp) ascending if column exists
+                # Sort by IC (nokp) ascending
                 if 'nokp' in filtered_df.columns:
                     filtered_df = filtered_df.sort_values(by='nokp', ascending=True)
 
