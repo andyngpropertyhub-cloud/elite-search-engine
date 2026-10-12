@@ -360,23 +360,21 @@ if search_query:
             df = query_job.to_dataframe()
 
             if not df.empty:
-                # 1. Clean IC and phone columns to string without scientific notation
-                ic_cols_to_clean = ['nokp', 'IC', 'ICLama', 'tel1', 'tel2']
-                for col in ic_cols_to_clean:
+                # Force clean string conversion to strip float decimals & scientific notation
+                for col in ['nokp', 'IC', 'ICLama', 'tel1', 'tel2']:
                     if col in df.columns:
                         df[col] = df[col].apply(
-                            lambda x: f"{int(x)}" if isinstance(x, (int, float)) and not pd.isna(x) else (str(x) if not pd.isna(x) else "")
+                            lambda x: "" if pd.isnull(x) else str(x).replace('.0', '').split('E')[0] if 'E' in str(x) else str(x).split('.')[0]
                         )
 
-                # 2. Exclude requested hidden columns
+                # Exclude hidden columns
                 hidden_columns = [
                     'Jastina', 'Kodlokaliti', 'NamaParlimen', 
-                    'NamaDM', 'NameDUN', 'NamaDUN', 'KategoriPemilih', 
+                    'NamaDM', 'NameDUN', 'KategoriPemilih', 
                     'name_tel', 'Unnamed__0'
                 ]
                 available_cols = [col for col in df.columns if col not in hidden_columns]
                 
-                # 3. Position nokp first, followed by Nama, tel1, IC, and remaining columns
                 front_cols = []
                 for col_name in ['nokp', 'Nama', 'tel1', 'IC']:
                     if col_name in available_cols:
@@ -385,24 +383,11 @@ if search_query:
                 display_cols = front_cols + [col for col in available_cols if col not in front_cols]
                 filtered_df = df[display_cols]
 
-                # 4. Sort by IC/nokp ascending
-                sort_key = 'nokp' if 'nokp' in filtered_df.columns else ('IC' if 'IC' in filtered_df.columns else None)
-                if sort_key:
-                    filtered_df = filtered_df.sort_values(by=sort_key, ascending=True)
+                if 'nokp' in filtered_df.columns:
+                    filtered_df = filtered_df.sort_values(by='nokp', ascending=True)
 
                 st.success(f"Found {len(filtered_df)} matching records.")
-                
-                # 5. Display with explicit string formatting configuration
-                st.dataframe(
-                    filtered_df, 
-                    use_container_width=True,
-                    column_config={
-                        "nokp": st.column_config.TextColumn("nokp"),
-                        "IC": st.column_config.TextColumn("IC"),
-                        "ICLama": st.column_config.TextColumn("ICLama"),
-                        "tel1": st.column_config.TextColumn("tel1")
-                    }
-                )
+                st.dataframe(filtered_df, use_container_width=True)
             else:
                 st.info("No matching records found in the database.")
     except Exception as e:
