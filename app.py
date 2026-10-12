@@ -383,8 +383,9 @@ if search_query:
                     filtered_df, 
                     use_container_width=True,
                     column_config={
-                        "nokp": st.column_config.TextColumn("nokp"),
-                        "IC": st.column_config.TextColumn("IC")
+                        "nokp": st.column_config.TextColumn("nokp", help="ID Number"),
+                        "IC": st.column_config.TextColumn("IC", help="IC Number"),
+                        "tel1": st.column_config.TextColumn("tel1", help="Phone Number")
                     }
                 )
             else:
