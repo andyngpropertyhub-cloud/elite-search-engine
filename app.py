@@ -350,22 +350,15 @@ if search_query:
         with st.spinner("Querying BigQuery dataset..."):
             query_job = client.query(sql_query)
             
-            # Force Pandas to read specific columns as string objects immediately upon conversion
-            df = query_job.to_dataframe(
-                create_bqstorage_client=False,
-                dtypes={
-                    'nokp': pd.StringDtype(),
-                    'IC': pd.StringDtype(),
-                    'tel1': pd.StringDtype(),
-                    'ICLama': pd.StringDtype()
-                }
-            )
+            # Disable bqstorage to allow standard row-by-row string preservation
+            df = query_job.to_dataframe(create_bqstorage_client=False)
 
             if not df.empty:
-                # Clean up any trailing float artifacts if present
+                # Force every identifier column explicitly to string format
                 for col in ['nokp', 'IC', 'ICLama', 'tel1']:
                     if col in df.columns:
-                        df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '')
+                        df[col] = df[col].apply(lambda x: str(int(x)) if pd.notnull(x) and isinstance(x, (float, int)) else (str(x) if pd.notnull(x) else ""))
+                        df[col] = df[col].str.replace(r'\.0$', '', regex=True).replace('nan', '')
 
                 hidden_columns = [
                     'Jastina', 'Kodlokaliti', 'NamaParlimen', 
