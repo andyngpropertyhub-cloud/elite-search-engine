@@ -37,7 +37,12 @@ st.markdown(
 
 # Admin Toggle (For testing logs & usage)
 st.sidebar.title("Admin Controls")
-st.session_state["is_admin"] = st.sidebar.checkbox("Enable Admin Mode", value=st.session_state["is_admin"])
+# Admin Toggle in Sidebar with a unique key
+st.session_state["is_admin"] = st.sidebar.checkbox(
+    "Enable Admin Mode", 
+    value=st.session_state["is_admin"], 
+    key="admin_mode_checkbox"
+)
 
 # 1. Birthday Banner on Front Page
 today = datetime.date.today()
