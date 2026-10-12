@@ -325,9 +325,18 @@ if search_query:
     if match_type == "Exact Match":
         sql_query = f"""
             SELECT 
-              CAST(nokp AS STRING) AS nokp,
-              CAST(IC AS STRING) AS IC,
-              * EXCEPT(nokp, IC)
+                CAST(nokp AS STRING) AS nokp,
+                CAST(IC AS STRING) AS IC,
+                Nama,
+                CAST(tel1 AS STRING) AS tel1,
+                CAST(ICLama AS STRING) AS ICLama,
+                NoRumah,
+                Jantina,
+                NamaLokaliti,
+                negeri,
+                Bangsa,
+                Alamat1,
+                Alamat2
             FROM `mysej-510709.mysej.combined_data`
             WHERE (LOWER(Nama) = '{safe_query.lower()}'
                OR CAST(nokp AS STRING) = '{safe_query}'
@@ -337,15 +346,25 @@ if search_query:
     else:
         sql_query = f"""
             SELECT 
-              CAST(nokp AS STRING) AS nokp,
-              CAST(IC AS STRING) AS IC,
-              * EXCEPT(nokp, IC)
+                CAST(nokp AS STRING) AS nokp,
+                CAST(IC AS STRING) AS IC,
+                Nama,
+                CAST(tel1 AS STRING) AS tel1,
+                CAST(ICLama AS STRING) AS ICLama,
+                NoRumah,
+                Jantina,
+                NamaLokaliti,
+                negeri,
+                Bangsa,
+                Alamat1,
+                Alamat2
             FROM `mysej-510709.mysej.combined_data`
             WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%'
                OR CAST(nokp AS STRING) LIKE '%{safe_query.lower()}%'
                OR LOWER(tel1) LIKE '%{safe_query.lower()}%'
             )
         """
+   
     
     if selected_negeri == "KLANG VALLEY (KUALA LUMPUR & SELANGOR)":
         sql_query += f" AND UPPER(negeri) IN ('KUALA LUMPUR', 'SELANGOR')"
