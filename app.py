@@ -57,10 +57,12 @@ if "team_birthdays" not in st.session_state:
 # ---------------------------------------------------------
 @st.cache_resource
 def get_bq_client():
+    project_id = "mysej-510709"
+    
     if "gcp_service_account" in st.secrets:
-        # Load credentials directly from secrets
+        # Load credentials directly from secrets with explicit project ID
         creds_dict = dict(st.secrets["gcp_service_account"])
-        return bigquery.Client.from_service_account_info(creds_dict)
+        return bigquery.Client.from_service_account_info(creds_dict, project=project_id)
     elif "GCP_SERVICE_ACCOUNT_BASE64" in os.environ:
         # Load encoded service account key if set
         encoded = os.environ["GCP_SERVICE_ACCOUNT_BASE64"]
@@ -68,15 +70,10 @@ def get_bq_client():
         with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json") as f:
             f.write(decoded)
             temp_path = f.name
-        return bigquery.Client.from_service_account_json(temp_path)
+        return bigquery.Client.from_service_account_json(temp_path, project=project_id)
     else:
-        # Fallback to standard environment client
-        return bigquery.Client()
-
-try:
-    client = get_bq_client()
-except Exception as e:
-    st.error(f"Failed to initialize BigQuery client: {e}")
+        # Fallback to standard environment client with explicit project ID
+        return bigquery.Client(project=project_id)
 
 # ---------------------------------------------------------
 # 4. Sidebar Controls
