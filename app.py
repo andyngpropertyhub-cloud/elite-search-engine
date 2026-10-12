@@ -8,7 +8,7 @@ import datetime
 # Page Configuration
 st.set_page_config(page_title="Elite Search Engine", page_icon="🔍", layout="wide")
 
-# Initialize Session State for Usage/Admin if not present
+# Initialize Session State
 if "usage" not in st.session_state:
     st.session_state["usage"] = {}
 if "quotas" not in st.session_state:
@@ -18,8 +18,22 @@ if "is_admin" not in st.session_state:
 if "user_logs" not in st.session_state:
     st.session_state["user_logs"] = []
 
-# Mock Current User for demonstration
-current_user = st.text_input("Username / ID:", value="user_default")
+# Simple User ID Input (No password column needed)
+current_user = st.text_input("Enter Your User ID / Name:", value="Agent_01")
+
+# Admin Toggle in Sidebar
+st.sidebar.title("Admin Controls")
+st.session_state["is_admin"] = st.sidebar.checkbox("Enable Admin Mode", value=st.session_state["is_admin"])
+
+# Birthday Banner
+st.markdown(
+    """
+    <div style="background-color: #ffeb3b; padding: 10px; border-radius: 5px; text-align: center; color: #000; margin-bottom: 20px;">
+        🎉 <b>Happy Birthday to all users celebrating their special day this month!</b> Wishing you success and happiness! 🎂
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # Admin Toggle (For testing logs & usage)
 st.sidebar.title("Admin Controls")
@@ -164,3 +178,53 @@ if search_query:
                 st.info("No matching records found in the database.")
     except Exception as e:
         st.error(f"An error occurred while executing the query: {e}")
+
+import datetime
+
+# Team Birthday Database
+team_birthdays = [
+    {"name": "OOI SHUN HOONG (Derrick)", "dob": "1991-01-16"},
+    {"name": "HOW KEAT HANG (Eric)", "dob": "1980-01-29"},
+    {"name": "YAP YUNG KANG (Kent)", "dob": "1988-02-23"},
+    {"name": "YAP SIEW PIN (Daniel)", "dob": "1979-03-07"},
+    {"name": "TIEW CHEE HEONG (Rex)", "dob": "1985-03-15"},
+    {"name": "NG WAI KEAT (Ted)", "dob": "1987-03-17"},
+    {"name": "Lee Keng Ho (Benny)", "dob": "1977-03-11"},
+    {"name": "RYAN CHAN PHUEI SUM", "dob": "2000-04-30"},
+    {"name": "YOW KOK SENG", "dob": "1989-05-01"},
+    {"name": "NG HON KEONG (Andy)", "dob": "1980-05-18"},
+    {"name": "YEOW GUAT BEE", "dob": "1965-06-12"},
+    {"name": "LO SHENG LOONG (Alex)", "dob": "1994-07-02"},
+    {"name": "WONG WING CHOY (Tommy)", "dob": "1981-08-14"},
+    {"name": "OOI KOK HING", "dob": "1984-08-31"},
+    {"name": "LEONG CHEE CHUNG (Dom)", "dob": "1989-09-08"},
+    {"name": "CHIN KOK LEONG (Eddie)", "dob": "1973-09-27"},
+    {"name": "TONG WAI LEUNG (Daniel)", "dob": "1988-11-03"},
+    {"name": "HOH CHENG YEE", "dob": "1974-11-10"},
+    {"name": "SIEW KET TONG (Top Siew)", "dob": "1975-11-24"},
+    {"name": "YAP YUNG MEI", "dob": "1984-12-18"}
+]
+
+# Check who has a birthday in the current month
+current_month = datetime.date.today().month
+current_month_birthdays = [
+    b["name"] for b in team_birthdays 
+    if datetime.datetime.strptime(b["dob"], "%Y-%m-%d").month == current_month
+]
+
+# Format banner message dynamically
+if current_month_birthdays:
+    names_str = ", ".join(current_month_birthdays)
+    banner_text = f"🎉 <b>Happy Birthday this month to: {names_str}!</b> Wishing you health, success, and happiness! 🎂"
+else:
+    banner_text = "🎉 <b>Happy Birthday to all team members celebrating their special day this month!</b> 🎂"
+
+# Render Birthday Banner on Front Page
+st.markdown(
+    f"""
+    <div style="background-color: #ffeb3b; padding: 12px; border-radius: 6px; text-align: center; color: #000; margin-bottom: 20px; font-size: 16px;">
+        {banner_text}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
