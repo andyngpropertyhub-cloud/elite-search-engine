@@ -100,24 +100,34 @@ current_user = st.session_state["logged_user"]
 max_quota = st.session_state["quotas"].get(current_user, 500)
 user_usage = st.session_state["usage"].get(current_user, 0)
 
+from google.oauth2 import service_account
+from google.cloud import bigquery
+import json
+
 # ---------------------------------------------------------
 # 4. BigQuery Client Authentication
 # ---------------------------------------------------------
 @st.cache_resource
 def get_bq_client():
     project_id = "mysej-510709"
+    
+    # Option 1: Streamlit Secrets (.streamlit/secrets.toml)
     if "gcp_service_account" in st.secrets:
         creds_dict = dict(st.secrets["gcp_service_account"])
-        return bigquery.Client.from_service_account_info(creds_dict, project=project_id)
+        credentials = service_account.Credentials.from_service_account_info(creds_dict)
+        return bigquery.Client(credentials=credentials, project=project_id)
+        
+    # Option 2: Base64 Encoded Environment Variable
     elif "GCP_SERVICE_ACCOUNT_BASE64" in os.environ:
         encoded = os.environ["GCP_SERVICE_ACCOUNT_BASE64"]
         decoded = base64.b64decode(encoded).decode("utf-8")
-        with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json") as f:
-            f.write(decoded)
-            temp_path = f.name
-        return bigquery.Client.from_service_account_json(temp_path, project=project_id)
+        creds_dict = json.loads(decoded)
+        credentials = service_account.Credentials.from_service_account_info(creds_dict)
+        return bigquery.Client(credentials=credentials, project=project_id)
+        
     else:
-        return bigquery.Client(project=project_id)
+        st.error("❌ BigQuery Service Account Credentials NOT found! Please add 'gcp_service_account' in Streamlit Secrets.")
+        st.stop()
 
 try:
     client = get_bq_client()
