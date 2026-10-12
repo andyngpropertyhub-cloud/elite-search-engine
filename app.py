@@ -300,7 +300,7 @@ selected_negeri = st.selectbox(
 
 match_type = st.radio(
     "Select Search Match Type:", 
-    ["Exact Match", "Similar (Partial Match)"], 
+    ["Exact Match for name and ic", "Similar (Partial Match for phone search exclude 60)"], 
     horizontal=True
 )
 
@@ -322,7 +322,7 @@ if search_query:
 
     safe_query = search_query.replace("'", "\\'")
     
-    if match_type == "Exact Match":
+    if match_type == "Exact Match for name and ic":
         sql_query = f"""
             SELECT * FROM `mysej-510709.mysej.combined_data`
             WHERE (LOWER(Nama) = '{safe_query.lower()}'
