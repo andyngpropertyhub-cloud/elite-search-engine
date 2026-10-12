@@ -350,15 +350,22 @@ if search_query:
         with st.spinner("Querying BigQuery dataset..."):
             query_job = client.query(sql_query)
             
-            # Use Arrow table conversion to preserve precision before converting to pandas
-            arrow_table = query_job.to_arrow()
-            df = arrow_table.to_pandas()
+            # Force Pandas to read specific columns as string objects immediately upon conversion
+            df = query_job.to_dataframe(
+                create_bqstorage_client=False,
+                dtypes={
+                    'nokp': pd.StringDtype(),
+                    'IC': pd.StringDtype(),
+                    'tel1': pd.StringDtype(),
+                    'ICLama': pd.StringDtype()
+                }
+            )
 
             if not df.empty:
-                # Force columns to string safely
+                # Clean up any trailing float artifacts if present
                 for col in ['nokp', 'IC', 'ICLama', 'tel1']:
                     if col in df.columns:
-                        df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True)
+                        df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '')
 
                 hidden_columns = [
                     'Jastina', 'Kodlokaliti', 'NamaParlimen', 
@@ -383,9 +390,10 @@ if search_query:
                     filtered_df, 
                     use_container_width=True,
                     column_config={
-                        "nokp": st.column_config.TextColumn("nokp", help="ID Number"),
-                        "IC": st.column_config.TextColumn("IC", help="IC Number"),
-                        "tel1": st.column_config.TextColumn("tel1", help="Phone Number")
+                        "nokp": st.column_config.TextColumn("nokp"),
+                        "IC": st.column_config.TextColumn("IC"),
+                        "tel1": st.column_config.TextColumn("tel1"),
+                        "ICLama": st.column_config.TextColumn("ICLama")
                     }
                 )
             else:
