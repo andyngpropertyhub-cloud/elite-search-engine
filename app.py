@@ -355,10 +355,13 @@ if search_query:
     try:
         with st.spinner("Querying BigQuery dataset..."):
             query_job = client.query(sql_query)
-            df = query_job.to_dataframe()
+            
+            # Use Arrow table conversion to preserve precision before converting to pandas
+            arrow_table = query_job.to_arrow()
+            df = arrow_table.to_pandas()
 
             if not df.empty:
-                # Force string conversion on fetch
+                # Force columns to string safely
                 for col in ['nokp', 'IC', 'ICLama', 'tel1']:
                     if col in df.columns:
                         df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True)
