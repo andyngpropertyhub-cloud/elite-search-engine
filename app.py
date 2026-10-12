@@ -325,8 +325,8 @@ if search_query:
     if match_type == "Exact Match":
         sql_query = f"""
             SELECT * EXCEPT(nokp, IC), 
-                   CAST(nokp AS STRING) AS nokp, 
-                   CAST(IC AS STRING) AS IC
+                   FORMAT('%.0f', nokp) AS nokp, 
+                   FORMAT('%.0f', IC) AS IC
             FROM `mysej-510709.mysej.combined_data`
             WHERE (LOWER(Nama) = '{safe_query.lower()}'
                OR CAST(nokp AS STRING) = '{safe_query}'
@@ -336,15 +336,14 @@ if search_query:
     else:
         sql_query = f"""
             SELECT * EXCEPT(nokp, IC), 
-                   CAST(nokp AS STRING) AS nokp, 
-                   CAST(IC AS STRING) AS IC
+                   FORMAT('%.0f', nokp) AS nokp, 
+                   FORMAT('%.0f', IC) AS IC
             FROM `mysej-510709.mysej.combined_data`
             WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%'
                OR CAST(nokp AS STRING) LIKE '%{safe_query.lower()}%'
                OR LOWER(tel1) LIKE '%{safe_query.lower()}%'
             )
         """
-   
     
     if selected_negeri == "KLANG VALLEY (KUALA LUMPUR & SELANGOR)":
         sql_query += f" AND UPPER(negeri) IN ('KUALA LUMPUR', 'SELANGOR')"
