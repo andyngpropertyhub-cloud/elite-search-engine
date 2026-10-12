@@ -188,7 +188,7 @@ st.markdown(
 )
 
 st.title("🔍 Elite Search Engine")
-st.write("Search across your BigQuery database records securely.")
+st.write("Search across Malaysia database records securely.")
 
 # ---------------------------------------------------------
 # 7. Admin Panel Dashboard & Management
@@ -359,14 +359,11 @@ if search_query:
             df = query_job.to_dataframe()
 
             if not df.empty:
-                # Force clean string conversion to strip float decimals & scientific notation
-                for col in ['nokp', 'IC', 'ICLama', 'tel1', 'tel2']:
+                # Force string conversion on fetch
+                for col in ['nokp', 'IC', 'ICLama', 'tel1']:
                     if col in df.columns:
-                        df[col] = df[col].apply(
-                            lambda x: "" if pd.isnull(x) else str(x).replace('.0', '').split('E')[0] if 'E' in str(x) else str(x).split('.')[0]
-                        )
+                        df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True)
 
-                # Exclude hidden columns
                 hidden_columns = [
                     'Jastina', 'Kodlokaliti', 'NamaParlimen', 
                     'NamaDM', 'NameDUN', 'KategoriPemilih', 
@@ -386,7 +383,14 @@ if search_query:
                     filtered_df = filtered_df.sort_values(by='nokp', ascending=True)
 
                 st.success(f"Found {len(filtered_df)} matching records.")
-                st.dataframe(filtered_df, use_container_width=True)
+                st.dataframe(
+                    filtered_df, 
+                    use_container_width=True,
+                    column_config={
+                        "nokp": st.column_config.TextColumn("nokp"),
+                        "IC": st.column_config.TextColumn("IC")
+                    }
+                )
             else:
                 st.info("No matching records found in the database.")
     except Exception as e:
