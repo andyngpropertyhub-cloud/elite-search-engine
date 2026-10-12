@@ -15,12 +15,32 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. Initialize Session State
+# 2. Initialize Session State (User Credentials & State)
 # ---------------------------------------------------------
+if "users" not in st.session_state:
+    st.session_state["users"] = {
+        "admin": "admin123",
+        "rex": "rex123",
+        "daniel": "daniel123",
+        "eric": "eric123",
+        "alex": "alex123",
+        "tommy": "tommy123",
+        "kokhing": "kokhing123",
+        "tony": "tony123",
+        "user1": "pass123",
+        "user2": "pass123"
+    }
+
+if "quotas" not in st.session_state:
+    # Set default 500 searches per user (unlimited for admin)
+    st.session_state["quotas"] = {u: (99999 if u == "admin" else 500) for u in st.session_state["users"]}
+
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "logged_user" not in st.session_state:
+    st.session_state["logged_user"] = None
 if "usage" not in st.session_state:
     st.session_state["usage"] = {}
-if "quotas" not in st.session_state:
-    st.session_state["quotas"] = {}
 if "is_admin" not in st.session_state:
     st.session_state["is_admin"] = False
 if "user_logs" not in st.session_state:
@@ -53,18 +73,43 @@ if "team_birthdays" not in st.session_state:
     ]
 
 # ---------------------------------------------------------
-# 3. BigQuery Client Authentication
+# 3. Login System Interface
+# ---------------------------------------------------------
+if not st.session_state["authenticated"]:
+    st.title("🔒 Login to Elite Search Engine")
+    
+    with st.form("login_form"):
+        username_input = st.text_input("Username:").strip().lower()
+        password_input = st.text_input("Password:", type="password")
+        submit_button = st.form_submit_button("Login")
+
+        if submit_button:
+            users_db = st.session_state["users"]
+            if username_input in users_db and users_db[username_input] == password_input:
+                st.session_state["authenticated"] = True
+                st.session_state["logged_user"] = username_input
+                if username_input not in st.session_state["usage"]:
+                    st.session_state["usage"][username_input] = 0
+                st.success(f"Welcome back, {username_input}!")
+                st.rerun()
+            else:
+                st.error("Invalid Username or Password. Please try again.")
+    st.stop()
+
+current_user = st.session_state["logged_user"]
+max_quota = st.session_state["quotas"].get(current_user, 500)
+user_usage = st.session_state["usage"].get(current_user, 0)
+
+# ---------------------------------------------------------
+# 4. BigQuery Client Authentication
 # ---------------------------------------------------------
 @st.cache_resource
 def get_bq_client():
     project_id = "mysej-510709"
-    
     if "gcp_service_account" in st.secrets:
-        # Load credentials directly from secrets with explicit project ID
         creds_dict = dict(st.secrets["gcp_service_account"])
         return bigquery.Client.from_service_account_info(creds_dict, project=project_id)
     elif "GCP_SERVICE_ACCOUNT_BASE64" in os.environ:
-        # Load encoded service account key if set
         encoded = os.environ["GCP_SERVICE_ACCOUNT_BASE64"]
         decoded = base64.b64decode(encoded).decode("utf-8")
         with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json") as f:
@@ -72,12 +117,24 @@ def get_bq_client():
             temp_path = f.name
         return bigquery.Client.from_service_account_json(temp_path, project=project_id)
     else:
-        # Fallback to standard environment client with explicit project ID
         return bigquery.Client(project=project_id)
 
+try:
+    client = get_bq_client()
+except Exception as e:
+    st.error(f"Failed to initialize BigQuery client: {e}")
+
 # ---------------------------------------------------------
-# 4. Sidebar Controls
+# 5. Sidebar & Logout
 # ---------------------------------------------------------
+st.sidebar.write(f"👤 Logged in as: **{current_user}**")
+st.sidebar.write(f"📊 Usage: **{user_usage} / {max_quota} searches**")
+
+if st.sidebar.button("Logout"):
+    st.session_state["authenticated"] = False
+    st.session_state["logged_user"] = None
+    st.rerun()
+
 st.sidebar.title("Admin Controls")
 st.session_state["is_admin"] = st.sidebar.checkbox(
     "Enable Admin Mode", 
@@ -86,12 +143,8 @@ st.session_state["is_admin"] = st.sidebar.checkbox(
 )
 
 # ---------------------------------------------------------
-# 5. Front Page Header & Announcements
+# 6. Front Page Header & Announcements
 # ---------------------------------------------------------
-# Simple User Identifier
-current_user = st.text_input("Enter Your User ID / Name:", value="Agent_01")
-
-# Office Notification Banner (if configured by admin)
 if st.session_state["office_notice"].strip():
     st.markdown(
         f"""
@@ -102,7 +155,6 @@ if st.session_state["office_notice"].strip():
         unsafe_allow_html=True
     )
 
-# Dynamic Birthday Banner based on current month
 current_month = datetime.date.today().month
 current_month_birthdays = [
     b["name"] for b in st.session_state["team_birthdays"] 
@@ -113,7 +165,7 @@ if current_month_birthdays:
     names_str = ", ".join(current_month_birthdays)
     banner_text = f"🎉 <b>Happy Birthday this month to: {names_str}!</b> Wishing you health, success, and happiness! 🎂"
 else:
-    banner_text = "🎉 <b>Happy Birthday to all team members celebrating their special day this month!</b> 🎂"
+    banner_text = "🧧 <b>Heng Ong Huat Ah!</b> Wishing everyone prosperity and great success! 🧧"
 
 st.markdown(
     f"""
@@ -128,19 +180,22 @@ st.title("🔍 Elite Search Engine")
 st.write("Search across your BigQuery database records securely.")
 
 # ---------------------------------------------------------
-# 6. Admin Panel Dashboard (Visible when Admin Mode is Enabled)
+# 7. Admin Panel Dashboard & Management
 # ---------------------------------------------------------
 if st.session_state["is_admin"]:
     st.subheader("📊 Admin Dashboard & Management")
     
-    tab1, tab2, tab3 = st.tabs(["Usage & Logs", "Manage Birthdays", "Office Notice Settings"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Usage & Logs", "Manage Users & Passwords", "Manage Birthdays", "Office Notice"])
     
     with tab1:
         col1, col2 = st.columns(2)
         with col1:
-            st.write("### Monthly & Current Search Usage")
+            st.write("### Monthly Search Usage")
             if st.session_state["usage"]:
-                usage_data = [{"User": u, "Searches Used": count} for u, count in st.session_state["usage"].items()]
+                usage_data = [
+                    {"User": u, "Searches Used": count, "Quota Limit": st.session_state["quotas"].get(u, 500)} 
+                    for u, count in st.session_state["usage"].items()
+                ]
                 st.dataframe(usage_data, use_container_width=True)
                 st.write(f"**Total Searches Across All Users:** {sum(st.session_state['usage'].values())}")
             else:
@@ -154,9 +209,43 @@ if st.session_state["is_admin"]:
                 st.info("No activity logs recorded yet.")
                 
     with tab2:
+        st.write("### Add New User or Change Password")
+        
+        # Sub-form to Add New User
+        with st.form("add_user_form"):
+            st.write("#### Add New User")
+            new_username = st.text_input("New Username:").strip().lower()
+            new_password = st.text_input("New User Password:", type="password")
+            new_quota = st.number_input("Monthly Search Quota:", value=500, min_value=1)
+            submit_new_user = st.form_submit_button("Create User")
+            
+            if submit_new_user and new_username and new_password:
+                if new_username in st.session_state["users"]:
+                    st.error("User already exists!")
+                else:
+                    st.session_state["users"][new_username] = new_password
+                    st.session_state["quotas"][new_username] = new_quota
+                    st.success(f"User '{new_username}' created successfully!")
+                    st.rerun()
+
+        st.markdown("---")
+        
+        # Sub-form to Change User Password
+        with st.form("change_password_form"):
+            st.write("#### Change Existing User Password")
+            target_user = st.selectbox("Select User:", list(st.session_state["users"].keys()))
+            updated_password = st.text_input("New Password:", type="password")
+            submit_change_pw = st.form_submit_button("Update Password")
+            
+            if submit_change_pw and updated_password:
+                st.session_state["users"][target_user] = updated_password
+                st.success(f"Password updated successfully for '{target_user}'!")
+                st.rerun()
+
+    with tab3:
         st.write("### Add New Team Member Birthday")
         with st.form("add_birthday_form"):
-            new_name = st.text_input("Team Member Name:")
+            new_name = st.text_input("Team Member Name (with Title):")
             new_dob = st.date_input("Date of Birth:", value=datetime.date(1990, 1, 1))
             submit_birthday = st.form_submit_button("Add Birthday")
             
@@ -169,14 +258,14 @@ if st.session_state["is_admin"]:
         st.write("Current Team Birthday List:")
         st.dataframe(st.session_state["team_birthdays"], use_container_width=True)
         
-    with tab3:
+    with tab4:
         st.write("### Office Status Notification Settings")
         with st.form("office_notice_form"):
             notice_input = st.text_area(
                 "Office Announcement / Closure Notice (Leave blank if open normally):", 
                 value=st.session_state["office_notice"]
             )
-            submit_notice = st.form_submit_button("Update Notice")
+            submit_notice = st.form_submit_button("Update Notice Banner")
             
             if submit_notice:
                 st.session_state["office_notice"] = notice_input
@@ -186,9 +275,8 @@ if st.session_state["is_admin"]:
     st.markdown("---")
 
 # ---------------------------------------------------------
-# 7. Search Interface & Logic
+# 8. Search Interface & Logic
 # ---------------------------------------------------------
-# Default Negeri Selection
 selected_negeri = st.selectbox(
     "Select or filter by Negeri (State):", 
     [
@@ -199,7 +287,6 @@ selected_negeri = st.selectbox(
     ]
 )
 
-# Default Search Match Type (Exact Match)
 match_type = st.radio(
     "Select Search Match Type:", 
     ["Exact Match", "Similar (Partial Match)"], 
@@ -209,15 +296,12 @@ match_type = st.radio(
 search_query = st.text_input("Enter Name, IC, or Phone to search:")
 
 if search_query:
-    # Quota check for non-admin users
-    if not st.session_state["is_admin"]:
-        if st.session_state["usage"].get(current_user, 0) >= st.session_state["quotas"].get(current_user, 500):
-            st.error("You have exceeded your monthly search quota limit. Please contact the administrator.")
-            st.stop()
-        else:
-            st.session_state["usage"][current_user] = st.session_state["usage"].get(current_user, 0) + 1
+    if user_usage >= max_quota and not st.session_state["is_admin"]:
+        st.error(f"⛔ You have reached your monthly limit of {max_quota} searches. Please contact the administrator.")
+        st.stop()
 
-    # Log search activity
+    st.session_state["usage"][current_user] = user_usage + 1
+
     st.session_state["user_logs"].append({
         "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "User": current_user,
@@ -227,7 +311,6 @@ if search_query:
 
     safe_query = search_query.replace("'", "\\'")
     
-    # Construct SQL Query
     if match_type == "Exact Match":
         sql_query = f"""
             SELECT * FROM `mysej-510709.mysej.combined_data`
@@ -245,7 +328,6 @@ if search_query:
             )
         """
     
-    # Apply Negeri Filter
     if selected_negeri == "KLANG VALLEY (KUALA LUMPUR & SELANGOR)":
         sql_query += f" AND UPPER(negeri) IN ('KUALA LUMPUR', 'SELANGOR')"
     elif selected_negeri != "ALL":
@@ -259,11 +341,9 @@ if search_query:
             df = query_job.to_dataframe()
 
             if not df.empty:
-                # 1. Convert IC/nokp to string to stop scientific notation formatting
                 if 'nokp' in df.columns:
                     df['nokp'] = df['nokp'].astype(str).str.replace(r'\.0$', '', regex=True)
 
-                # 2. Exclude all requested hidden columns
                 hidden_columns = [
                     'jantina', 'Jastina', 'Kodlokaliti', 'NamaParlimen', 
                     'NamaDM', 'NameDUN', 'NamaDUN', 'KategoriPemilih', 
@@ -271,7 +351,6 @@ if search_query:
                 ]
                 available_cols = [col for col in df.columns if col not in hidden_columns]
                 
-                # 3. Position nokp first, followed by Nama, tel1, and the remaining columns
                 front_cols = []
                 for col_name in ['nokp', 'Nama', 'tel1']:
                     if col_name in available_cols:
@@ -280,7 +359,6 @@ if search_query:
                 display_cols = front_cols + [col for col in available_cols if col not in front_cols]
                 filtered_df = df[display_cols]
 
-                # 4. Sort by IC (nokp) ascending
                 if 'nokp' in filtered_df.columns:
                     filtered_df = filtered_df.sort_values(by='nokp', ascending=True)
 
