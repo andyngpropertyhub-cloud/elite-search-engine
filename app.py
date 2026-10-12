@@ -350,16 +350,36 @@ if search_query:
         with st.spinner("Querying BigQuery dataset..."):
             query_job = client.query(sql_query)
             
-            # Disable bqstorage to allow standard row-by-row string preservation
-            df = query_job.to_dataframe(create_bqstorage_client=False)
+            # Fetch raw rows and manually force nokp, IC, tel1 to raw strings
+            raw_rows = []
+            columns = []
+            
+            for row in query_job:
+                if not columns:
+                    columns = list(row.keys())
+                
+                row_dict = {}
+                for key, value in row.items():
+                    # Force ID and phone columns to clean unformatted strings
+                    if key in ['nokp', 'IC', 'ICLama', 'tel1'] and value is not None:
+                        # Convert float/int representations back to a clean flat string
+                        str_val = str(value)
+                        if '.' in str_val:
+                            str_val = str_val.split('.')[0]
+                        if 'E' in str_val or 'e' in str_val:
+                            # If scientific notation slipped through, parse it safely
+                            try:
+                                str_val = f"{int(float(value))}"
+                            except:
+                                pass
+                        row_dict[key] = str_val
+                    else:
+                        row_dict[key] = "" if value is None else value
+                raw_rows.append(row_dict)
+
+            df = pd.DataFrame(raw_rows)
 
             if not df.empty:
-                # Force every identifier column explicitly to string format
-                for col in ['nokp', 'IC', 'ICLama', 'tel1']:
-                    if col in df.columns:
-                        df[col] = df[col].apply(lambda x: str(int(x)) if pd.notnull(x) and isinstance(x, (float, int)) else (str(x) if pd.notnull(x) else ""))
-                        df[col] = df[col].str.replace(r'\.0$', '', regex=True).replace('nan', '')
-
                 hidden_columns = [
                     'Jastina', 'Kodlokaliti', 'NamaParlimen', 
                     'NamaDM', 'NameDUN', 'KategoriPemilih', 
