@@ -1,7 +1,10 @@
 import streamlit as st
 from google.cloud import bigquery
+from google.oauth2 import service_account
+import pandas as pd  # <-- ADD THIS IMPORT
 import base64
 import tempfile
+import json
 import os
 import datetime
 
@@ -100,13 +103,6 @@ current_user = st.session_state["logged_user"]
 max_quota = st.session_state["quotas"].get(current_user, 500)
 user_usage = st.session_state["usage"].get(current_user, 0)
 
-from google.oauth2 import service_account
-from google.cloud import bigquery
-import json
-
-from google.oauth2 import service_account
-from google.cloud import bigquery
-import json
 
 # ---------------------------------------------------------
 # 4. BigQuery Client Authentication
@@ -356,16 +352,15 @@ if search_query:
             df = query_job.to_dataframe()
 
             if not df.empty:
-                # 1. Format IC and phone columns to string without scientific notation or trailing decimals
+                # 1. Clean IC and phone columns to string without scientific notation
                 ic_cols_to_clean = ['nokp', 'IC', 'ICLama', 'tel1', 'tel2']
                 for col in ic_cols_to_clean:
                     if col in df.columns:
-                        # Convert float/int to integer string format
                         df[col] = df[col].apply(
-                            lambda x: f"{int(x)}" if isinstance(x, (int, float)) and not pd.isna(x) else str(x) if not pd.isna(x) else ""
+                            lambda x: f"{int(x)}" if isinstance(x, (int, float)) and not pd.isna(x) else (str(x) if not pd.isna(x) else "")
                         )
 
-                # 2. Exclude requested hidden columns (including Jantina if needed)
+                # 2. Exclude requested hidden columns
                 hidden_columns = [
                     'Jastina', 'Kodlokaliti', 'NamaParlimen', 
                     'NamaDM', 'NameDUN', 'NamaDUN', 'KategoriPemilih', 
