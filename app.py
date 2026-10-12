@@ -104,6 +104,10 @@ from google.oauth2 import service_account
 from google.cloud import bigquery
 import json
 
+from google.oauth2 import service_account
+from google.cloud import bigquery
+import json
+
 # ---------------------------------------------------------
 # 4. BigQuery Client Authentication
 # ---------------------------------------------------------
@@ -111,22 +115,23 @@ import json
 def get_bq_client():
     project_id = "mysej-510709"
     
-    # Option 1: Streamlit Secrets (.streamlit/secrets.toml)
-    if "gcp_service_account" in st.secrets:
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        credentials = service_account.Credentials.from_service_account_info(creds_dict)
-        return bigquery.Client(credentials=credentials, project=project_id)
-        
-    # Option 2: Base64 Encoded Environment Variable
-    elif "GCP_SERVICE_ACCOUNT_BASE64" in os.environ:
-        encoded = os.environ["GCP_SERVICE_ACCOUNT_BASE64"]
-        decoded = base64.b64decode(encoded).decode("utf-8")
+    # Check for GCP_CREDENTIALS_B64 or GCP_SERVICE_ACCOUNT_BASE64 in Environment
+    b64_key = os.environ.get("GCP_CREDENTIALS_B64") or os.environ.get("GCP_SERVICE_ACCOUNT_BASE64")
+    
+    if b64_key:
+        decoded = base64.b64decode(b64_key).decode("utf-8")
         creds_dict = json.loads(decoded)
         credentials = service_account.Credentials.from_service_account_info(creds_dict)
         return bigquery.Client(credentials=credentials, project=project_id)
         
+    # Option 2: Check Streamlit Secrets (.streamlit/secrets.toml)
+    elif "gcp_service_account" in st.secrets:
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        credentials = service_account.Credentials.from_service_account_info(creds_dict)
+        return bigquery.Client(credentials=credentials, project=project_id)
+        
     else:
-        st.error("❌ BigQuery Service Account Credentials NOT found! Please add 'gcp_service_account' in Streamlit Secrets.")
+        st.error("❌ BigQuery Service Account Credentials NOT found! Please set 'GCP_CREDENTIALS_B64' in environment variables or Streamlit Secrets.")
         st.stop()
 
 try:
