@@ -127,7 +127,7 @@ tab_search, tab_news, tab_mortgage, tab_tenancy, tab_budget, tab_contacts = st.t
 ])
 
 # =============================================================================
-# TAB 0: ELITE SEARCH ENGINE (BIGQUERY INTERFACE WITH LOGIN GATE)
+# TAB 0: ELITE SEARCH ENGINE (BIGQUERY INTERFACE WITH AGE CALCULATION)
 # =============================================================================
 with tab_search:
     st.header("🔍 Commercial & Dataset Search Interface")
@@ -275,6 +275,32 @@ with tab_search:
 
                         df = pd.DataFrame(raw_rows)
                         if not df.empty:
+                            # Helper function to derive Age from Malaysian IC string (YYMMDD...)
+                            def derive_age_from_ic(ic_str):
+                                if not ic_str or len(ic_str) < 6:
+                                    return None
+                                try:
+                                    yy = int(ic_str[0:2])
+                                    mm = int(ic_str[2:4])
+                                    dd = int(ic_str[4:6])
+                                    
+                                    # Determine century (Malaysian ICs: 00-29 usually 2000s, 30-99 usually 1900s)
+                                    current_yr = datetime.datetime.now().year
+                                    century = 2000 if yy <= (current_yr % 100) else 1900
+                                    birth_year = century + yy
+                                    
+                                    birth_date = datetime.date(birth_year, mm, dd)
+                                    today = datetime.date.today()
+                                    
+                                    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                                    return age if 0 <= age <= 120 else None
+                                except Exception:
+                                    return None
+
+                            # Apply age derivation across rows using 'IC' column
+                            if 'IC' in df.columns:
+                                df['Age'] = df['IC'].apply(derive_age_from_ic)
+
                             hidden_columns = [
                                 'nokp', 'Jastina', 'Kodlokaliti', 'NamaParlimen', 
                                 'NamaDM', 'NameDUN', 'KategoriPemilih', 
@@ -283,7 +309,7 @@ with tab_search:
                             available_cols = [col for col in df.columns if col not in hidden_columns]
                             
                             front_cols = []
-                            for col_name in ['IC', 'Nama', 'tel1', 'NamaLokaliti', 'Alamat2']:
+                            for col_name in ['IC', 'Age', 'Nama', 'tel1', 'NamaLokaliti', 'Alamat2']:
                                 if col_name in available_cols:
                                     front_cols.append(col_name)
                                     
