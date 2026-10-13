@@ -1,203 +1,27 @@
 import streamlit as st
 from google.cloud import bigquery
 from google.oauth2 import service_account
-import pandas as pd  # <-- ADD THIS IMPORT
+import pandas as pd
 import base64
 import tempfile
 import json
 import os
 import datetime
-
-# ---------------------------------------------------------
-# 1. Page Configuration
-# ---------------------------------------------------------
-import streamlit as st
-import streamlit.components.v1 as components
-
-# MUST be first! Set your desired page title and icon
-st.set_page_config(page_title="Elite Search Engine", page_icon="🔍", layout="wide")
-
-# Inject Open Graph Meta Tags for WhatsApp/Social Media
-og_meta_tags = """
-    <head>
-      <!-- Optimized Title & Description -->
-      <meta property="og:title" content="Elite Search Engine" />
-      <meta property="og:description" content="Fast, reliable search tool for structured datasets with full data accuracy." />
-      <meta property="og:type" content="website" />
-      <meta property="og:url" content="https://elitesearch.streamlit.app/" />
-      
-      <!-- *** PASTE YOUR PUBLIC IMAGE URL HERE *** -->
-      <meta property="og:image" content="https://raw.githubusercontent.com/andyngpropertyhub-cloud/elite-search-engine/main/preview.jpg" />
-      
-      <!-- Recommended Image Constraints: 1:1 Aspect Ratio (Square), <300KB -->
-    </head>
-"""
-
-# Render hidden tags without space
-components.html(og_meta_tags, height=0, width=0)
-
-# pull live property news and Financing & Mortgage Center
-
-import streamlit as st
 import feedparser
+import math
 
-# Page Configuration
+# -----------------------------------------------------------------------------
+# 1. Page Configuration (MUST BE FIRST STREAMLIT CALL)
+# -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Elite Search Engine | Market Insights & Financing",
+    page_title="Elite Search Engine | Property Market Utilities",
     page_icon="🏢",
     layout="wide"
 )
 
-st.title("🏢 Elite Property Hub & Market Utilities")
-st.caption("Real-time Malaysian property market intelligence, news, and dynamic financing tools.")
-
-# Create main feature tabs
-tab_news, tab_mortgage = st.tabs(["📰 Latest Property News", "🏦 Mortgage Calculator & Bank Rates"])
-
-# ==========================================
-# TAB 1: LIVE MALAYSIA PROPERTY NEWS
-# ==========================================
-with tab_news:
-    st.header("📰 Live Malaysian Property News & Insights")
-    st.caption("Automated daily RSS updates on market developments, commercial trends, and real estate news.")
-
-    # RSS Feed Source (e.g., The Edge Malaysia Property / EdgeProp)
-    NEWS_RSS_URL = "https://theedgemalaysia.com/rss/property"
-
-    @st.cache_data(ttl=3600)  # Refresh news cache every 1 hour (3600s)
-    def fetch_property_news(url):
-        try:
-            feed = feedparser.parse(url)
-            return feed.entries
-        except Exception:
-            return []
-
-    news_entries = fetch_property_news(NEWS_RSS_URL)
-
-    if news_entries:
-        for entry in news_entries[:6]:  # Display top 6 news items
-            col_img, col_text = st.columns([1, 2.5])
-
-            # Extract article thumbnail image
-            image_url = None
-            if 'media_content' in entry and len(entry.media_content) > 0:
-                image_url = entry.media_content[0].get('url')
-            elif 'media_thumbnail' in entry and len(entry.media_thumbnail) > 0:
-                image_url = entry.media_thumbnail[0].get('url')
-            elif 'links' in entry:
-                for link in entry.links:
-                    if 'image' in link.get('type', ''):
-                        image_url = link.get('href')
-                        break
-
-            # Image Column
-            with col_img:
-                if image_url:
-                    st.image(image_url, use_column_width=True)
-                else:
-                    st.info("🖼️ Property News Preview")
-
-            # Content Column
-            with col_text:
-                pub_date = entry.get('published', 'Recent Update')[:16]
-                st.markdown(f"### [{entry.title}]({entry.link})")
-                st.caption(f"🗓️ Published: {pub_date}")
-                
-                # Clean snippet summary if present
-                summary = entry.get('summary', '')
-                if summary:
-                    clean_summary = summary.split('<')[0][:180] + "..." if '<' in summary else summary[:180] + "..."
-                    st.write(clean_summary)
-
-            st.markdown("---")
-    else:
-        st.warning("Unable to retrieve live RSS feeds at the moment. Please check back shortly.")
-
-
-# ==========================================
-# TAB 2: DAILY BANK RATES & MORTGAGE CALCULATOR
-# ==========================================
-with tab_mortgage:
-    st.header("🏦 Malaysia Property Financing & Rate Center")
-    
-    # 1. Cached Daily Bank Rates Data
-    @st.cache_data(ttl=86400)  # Refresh cached rates every 24 hours (86400s)
-    def get_daily_bank_rates():
-        """
-        Indicative daily retail effective lending rates in Malaysia (Linked to BNM SBR benchmark).
-        """
-        return {
-            "Maybank": {"Residential": 3.85, "Commercial": 4.50, "Type": "Variable (SBR + Spread)"},
-            "Public Bank": {"Residential": 3.90, "Commercial": 4.60, "Type": "Variable (SBR + Spread)"},
-            "CIMB Bank": {"Residential": 3.88, "Commercial": 4.55, "Type": "Variable (SBR + Spread)"},
-            "Hong Leong Bank": {"Residential": 3.92, "Commercial": 4.65, "Type": "Variable (SBR + Spread)"},
-            "RHB Bank": {"Residential": 3.89, "Commercial": 4.55, "Type": "Variable (SBR + Spread)"},
-            "AmBank": {"Residential": 3.95, "Commercial": 4.70, "Type": "Variable (SBR + Spread)"}
-        }
-
-    bank_rates_data = get_daily_bank_rates()
-
-    # 2. Display Bank Rate Table
-    with st.expander("📊 Indicative Bank Mortgage Rates (Malaysia Market)", expanded=True):
-        st.caption("Benchmark rates for residential and commercial property financing, cached daily.")
-        
-        table_rows = []
-        for bank, info in bank_rates_data.items():
-            table_rows.append({
-                "Bank Institution": bank,
-                "Residential Rate (% p.a.)": f"{info['Residential']:.2f}%",
-                "Commercial Rate (% p.a.)": f"{info['Commercial']:.2f}%",
-                "Pricing Benchmark": info["Type"]
-            })
-        st.table(table_rows)
-
-    st.markdown("---")
-
-    # 3. Dynamic Integrated Mortgage Calculator
-    st.subheader("🧮 Interactive Loan Calculator")
-    st.caption("Calculations automatically reference the selected bank's rate above.")
-
-    col_calc1, col_calc2 = st.columns(2)
-
-    with col_calc1:
-        property_type = st.radio("Property Category", ["Residential", "Commercial"], horizontal=True)
-        selected_bank = st.selectbox("Select Financial Institution", list(bank_rates_data.keys()))
-        
-        # Auto-fetch benchmark rate based on selection
-        default_rate = float(bank_rates_data[selected_bank][property_type])
-        
-        property_price = st.number_input("Property Value (RM)", min_value=50000, max_value=50000000, value=750000, step=50000)
-        margin_of_finance = st.slider("Margin of Finance (%)", min_value=10, max_value=90, value=85, step=5)
-
-    with col_calc2:
-        loan_amount = property_price * (margin_of_finance / 100)
-        st.metric(label="Calculated Loan Financing Amount", value=f"RM {loan_amount:,.2f}")
-        
-        interest_rate = st.number_input("Interest Rate (% p.a.)", min_value=1.0, max_value=12.0, value=default_rate, step=0.05)
-        loan_tenure_years = st.slider("Loan Tenure (Years)", min_value=5, max_value=35, value=30, step=1)
-
-    # 4. Amortization Logic
-    monthly_interest_rate = (interest_rate / 100) / 12
-    total_payments = loan_tenure_years * 12
-
-    if monthly_interest_rate > 0:
-        monthly_payment = loan_amount * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
-    else:
-        monthly_payment = loan_amount / total_payments
-
-    total_payment = monthly_payment * total_payments
-    total_interest = total_payment - loan_amount
-
-    st.markdown("### 📋 Payment Summary")
-    res_col1, res_col2, res_col3 = st.columns(3)
-
-    res_col1.metric(label="Estimated Monthly Commitment", value=f"RM {monthly_payment:,.2f}")
-    res_col2.metric(label="Total Interest Charged", value=f"RM {total_interest:,.2f}")
-    res_col3.metric(label="Total Principal + Interest", value=f"RM {total_payment:,.2f}")
-
-# ---------------------------------------------------------
+# -----------------------------------------------------------------------------
 # 2. Initialize Session State (User Credentials & State)
-# ---------------------------------------------------------
+# -----------------------------------------------------------------------------
 if "users" not in st.session_state:
     st.session_state["users"] = {
         "admin": "admin123",
@@ -213,7 +37,6 @@ if "users" not in st.session_state:
     }
 
 if "quotas" not in st.session_state:
-    # Set default 500 searches per user (unlimited for admin)
     st.session_state["quotas"] = {u: (99999 if u == "admin" else 500) for u in st.session_state["users"]}
 
 if "authenticated" not in st.session_state:
@@ -253,12 +76,11 @@ if "team_birthdays" not in st.session_state:
         {"name": "YAP YUNG MEI", "dob": "1984-12-18"}
     ]
 
-# ---------------------------------------------------------
-# 3. Login System Interface
-# ---------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 3. Login System Gate
+# -----------------------------------------------------------------------------
 if not st.session_state["authenticated"]:
-    st.title("🔒 Login to Elite Search Engine")
-    
+    st.title("🔒 Login to Elite Search Engine & Property Hub")
     with st.form("login_form"):
         username_input = st.text_input("Username:").strip().lower()
         password_input = st.text_input("Password:", type="password")
@@ -281,41 +103,33 @@ current_user = st.session_state["logged_user"]
 max_quota = st.session_state["quotas"].get(current_user, 500)
 user_usage = st.session_state["usage"].get(current_user, 0)
 
-
-# ---------------------------------------------------------
-# 4. BigQuery Client Authentication
-# ---------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 4. BigQuery Client Authentication Setup
+# -----------------------------------------------------------------------------
 @st.cache_resource
 def get_bq_client():
     project_id = "mysej-510709"
-    
-    # Check for GCP_CREDENTIALS_B64 or GCP_SERVICE_ACCOUNT_BASE64 in Environment
     b64_key = os.environ.get("GCP_CREDENTIALS_B64") or os.environ.get("GCP_SERVICE_ACCOUNT_BASE64")
     
     if b64_key:
         decoded = base64.b64decode(b64_key).decode("utf-8")
         creds_dict = json.loads(decoded)
-        credentials = service_account.Credentials.from_service_account_info(creds_dict)
-        return bigquery.Client(credentials=credentials, project=project_id)
-        
-    # Option 2: Check Streamlit Secrets (.streamlit/secrets.toml)
+        return bigquery.Client(credentials=service_account.Credentials.from_service_account_info(creds_dict), project=project_id)
     elif "gcp_service_account" in st.secrets:
         creds_dict = dict(st.secrets["gcp_service_account"])
-        credentials = service_account.Credentials.from_service_account_info(creds_dict)
-        return bigquery.Client(credentials=credentials, project=project_id)
-        
+        return bigquery.Client(credentials=service_account.Credentials.from_service_account_info(creds_dict), project=project_id)
     else:
-        st.error("❌ BigQuery Service Account Credentials NOT found! Please set 'GCP_CREDENTIALS_B64' in environment variables or Streamlit Secrets.")
+        st.error("❌ BigQuery Service Account Credentials NOT found!")
         st.stop()
 
 try:
     client = get_bq_client()
 except Exception as e:
-    st.error(f"Failed to initialize BigQuery client: {e}")
+    client = None
 
-# ---------------------------------------------------------
-# 5. Sidebar & Logout
-# ---------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 5. Sidebar Controls & Logout
+# -----------------------------------------------------------------------------
 st.sidebar.write(f"👤 Logged in as: **{current_user}**")
 st.sidebar.write(f"📊 Usage: **{user_usage} / {max_quota} searches**")
 
@@ -331,9 +145,12 @@ st.session_state["is_admin"] = st.sidebar.checkbox(
     key="admin_mode_checkbox"
 )
 
-# ---------------------------------------------------------
-# 6. Front Page Header & Announcements
-# ---------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 6. Main App Header & Banners
+# -----------------------------------------------------------------------------
+st.title("🏢 Elite Property Hub & Search Engine")
+st.caption("Real-time Malaysian property market intelligence, calculators, legal tools, and directory.")
+
 if st.session_state["office_notice"].strip():
     st.markdown(
         f"""
@@ -350,11 +167,7 @@ current_month_birthdays = [
     if datetime.datetime.strptime(b["dob"], "%Y-%m-%d").month == current_month
 ]
 
-if current_month_birthdays:
-    names_str = ", ".join(current_month_birthdays)
-    banner_text = f"🎉 <b>Happy Birthday this month to: {names_str}!</b> Wishing you health, success, and happiness! 🎂"
-else:
-    banner_text = "🧧 <b>Heng Ong Huat Ah!</b> Wishing everyone prosperity and great success! 🧧"
+banner_text = f"🎉 <b>Happy Birthday this month to: {', '.join(current_month_birthdays)}!</b>" if current_month_birthdays else "🧧 <b>Heng Ong Huat Ah!</b> Wishing everyone prosperity and great success! 🧧"
 
 st.markdown(
     f"""
@@ -365,229 +178,239 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title("🔍 Elite Search Engine")
-st.write("Search across Malaysia database records securely.")
+# -----------------------------------------------------------------------------
+# 7. Main Navigation (6 Tabs View)
+# -----------------------------------------------------------------------------
+tab_search, tab_news, tab_mortgage, tab_tenancy, tab_budget, tab_contacts = st.tabs([
+    "🔍 Elite Search Engine",
+    "📰 Latest Property News", 
+    "🏦 Mortgage, Legal Fees & Stamp Duty", 
+    "📜 Tenancy Stamp Duty Calculator",
+    "📊 Malaysia Budget Highlights",
+    "📞 Professional Services Directory"
+])
 
-# ---------------------------------------------------------
-# 7. Admin Panel Dashboard & Management
-# ---------------------------------------------------------
-if st.session_state["is_admin"]:
-    st.subheader("📊 Admin Dashboard & Management")
+# =============================================================================
+# TAB 0: ELITE SEARCH ENGINE (BIGQUERY INTERFACE)
+# =============================================================================
+with tab_search:
+    st.header("🔍 Commercial & Dataset Search Interface")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["Usage & Logs", "Manage Users & Passwords", "Manage Birthdays", "Office Notice"])
-    
-    with tab1:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("### Monthly Search Usage")
-            if st.session_state["usage"]:
-                usage_data = [
-                    {"User": u, "Searches Used": count, "Quota Limit": st.session_state["quotas"].get(u, 500)} 
-                    for u, count in st.session_state["usage"].items()
-                ]
-                st.dataframe(usage_data, use_container_width=True)
-                st.write(f"**Total Searches Across All Users:** {sum(st.session_state['usage'].values())}")
-            else:
-                st.info("No search usage recorded yet.")
-                
-        with col2:
-            st.write("### Recent Activity Logs")
-            if st.session_state["user_logs"]:
-                st.dataframe(st.session_state["user_logs"][-10:], use_container_width=True)
-            else:
-                st.info("No activity logs recorded yet.")
-                
-    with tab2:
-        st.write("### Add New User or Change Password")
+    if st.session_state["is_admin"]:
+        with st.expander("📊 Admin Dashboard & Management"):
+            admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs(["Usage & Logs", "Manage Users", "Manage Birthdays", "Office Notice"])
+            with admin_tab1:
+                if st.session_state["usage"]:
+                    st.dataframe([{"User": u, "Searches Used": c, "Quota": st.session_state["quotas"].get(u, 500)} for u, c in st.session_state["usage"].items()], use_container_width=True)
+                if st.session_state["user_logs"]:
+                    st.dataframe(st.session_state["user_logs"][-10:], use_container_width=True)
+            with admin_tab2:
+                with st.form("add_user_form"):
+                    nu = st.text_input("New Username:").strip().lower()
+                    npw = st.text_input("New Password:", type="password")
+                    if st.form_submit_button("Create User") and nu and npw:
+                        st.session_state["users"][nu] = npw
+                        st.session_state["quotas"][nu] = 500
+                        st.success(f"User {nu} created!")
+                        st.rerun()
+            with admin_tab3:
+                with st.form("add_bday"):
+                    bname = st.text_input("Name:")
+                    bdob = st.date_input("DOB:")
+                    if st.form_submit_button("Add") and bname:
+                        st.session_state["team_birthdays"].append({"name": bname, "dob": bdob.strftime("%Y-%m-%d")})
+                        st.rerun()
+            with admin_tab4:
+                with st.form("notice_f"):
+                    not_in = st.text_area("Notice:", value=st.session_state["office_notice"])
+                    if st.form_submit_button("Update"):
+                        st.session_state["office_notice"] = not_in
+                        st.rerun()
+
+    selected_negeri = st.selectbox(
+        "Select or filter by Negeri (State):", 
+        ["KLANG VALLEY (KUALA LUMPUR & SELANGOR)", "ALL", "SELANGOR", "KUALA LUMPUR", "JOHOR", "PENANG", "PERAK", "MELAKA", "NEGERI SEMBILAN", "PAHANG", "KELANTAN", "TERENGGANU", "KEDAH", "PERLIS", "SABAH", "SARAWAK"]
+    )
+    match_type = st.radio("Select Search Match Type:", ["Exact Match for name and ic", "Similar (Partial Match for phone search exclude 60)"], horizontal=True)
+    search_query = st.text_input("Enter Name, IC, or Phone to search:")
+
+    if search_query:
+        if user_usage >= max_quota and not st.session_state["is_admin"]:
+            st.error(f"⛔ Monthly limit of {max_quota} searches reached.")
+            st.stop()
+
+        st.session_state["usage"][current_user] = user_usage + 1
+        st.session_state["user_logs"].append({"Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "User": current_user, "Query": search_query, "Match Type": match_type})
+
+        safe_query = search_query.replace("'", "\\'")
+        if match_type == "Exact Match for name and ic":
+            sql_query = f"SELECT * FROM `mysej-510709.mysej.combined_data` WHERE (LOWER(Nama) = '{safe_query.lower()}' OR CAST(nokp AS STRING) = '{safe_query}' OR LOWER(tel1) = '{safe_query.lower()}')"
+        else:
+            sql_query = f"SELECT * FROM `mysej-510709.mysej.combined_data` WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%' OR CAST(nokp AS STRING) LIKE '%{safe_query.lower()}%' OR LOWER(tel1) LIKE '%{safe_query.lower()}%')"
         
-        # Sub-form to Add New User
-        with st.form("add_user_form"):
-            st.write("#### Add New User")
-            new_username = st.text_input("New Username:").strip().lower()
-            new_password = st.text_input("New User Password:", type="password")
-            new_quota = st.number_input("Monthly Search Quota:", value=500, min_value=1)
-            submit_new_user = st.form_submit_button("Create User")
-            
-            if submit_new_user and new_username and new_password:
-                if new_username in st.session_state["users"]:
-                    st.error("User already exists!")
+        if selected_negeri == "KLANG VALLEY (KUALA LUMPUR & SELANGOR)":
+            sql_query += " AND UPPER(negeri) IN ('KUALA LUMPUR', 'SELANGOR')"
+        elif selected_negeri != "ALL":
+            sql_query += f" AND UPPER(negeri) = '{selected_negeri}'"
+        sql_query += " LIMIT 100"
+
+        try:
+            with st.spinner("Querying BigQuery..."):
+                query_job = client.query(sql_query)
+                raw_rows, columns = [], []
+                for row in query_job:
+                    if not columns:
+                        columns = list(row.keys())
+                    row_dict = {}
+                    for k, v in row.items():
+                        if k in ['nokp', 'IC', 'ICLama', 'tel1'] and v is not None:
+                            str_val = str(v).split('.')[0]
+                            row_dict[k] = str_val
+                        else:
+                            row_dict[k] = "" if v is None else v
+                    raw_rows.append(row_dict)
+
+                df = pd.DataFrame(raw_rows)
+                if not df.empty:
+                    st.success(f"Found {len(df)} records.")
+                    st.dataframe(df, use_container_width=True)
                 else:
-                    st.session_state["users"][new_username] = new_password
-                    st.session_state["quotas"][new_username] = new_quota
-                    st.success(f"User '{new_username}' created successfully!")
-                    st.rerun()
+                    st.info("No records found.")
+        except Exception as e:
+            st.error(f"Query Error: {e}")
 
-        st.markdown("---")
-        
-        # Sub-form to Change User Password
-        with st.form("change_password_form"):
-            st.write("#### Change Existing User Password")
-            target_user = st.selectbox("Select User:", list(st.session_state["users"].keys()))
-            updated_password = st.text_input("New Password:", type="password")
-            submit_change_pw = st.form_submit_button("Update Password")
-            
-            if submit_change_pw and updated_password:
-                st.session_state["users"][target_user] = updated_password
-                st.success(f"Password updated successfully for '{target_user}'!")
-                st.rerun()
 
-    with tab3:
-        st.write("### Add New Team Member Birthday")
-        with st.form("add_birthday_form"):
-            new_name = st.text_input("Team Member Name (with Title):")
-            new_dob = st.date_input("Date of Birth:", value=datetime.date(1990, 1, 1))
-            submit_birthday = st.form_submit_button("Add Birthday")
-            
-            if submit_birthday and new_name:
-                formatted_dob = new_dob.strftime("%Y-%m-%d")
-                st.session_state["team_birthdays"].append({"name": new_name, "dob": formatted_dob})
-                st.success(f"Added birthday for {new_name} successfully!")
-                st.rerun()
-                
-        st.write("Current Team Birthday List:")
-        st.dataframe(st.session_state["team_birthdays"], use_container_width=True)
-        
-    with tab4:
-        st.write("### Office Status Notification Settings")
-        with st.form("office_notice_form"):
-            notice_input = st.text_area(
-                "Office Announcement / Closure Notice (Leave blank if open normally):", 
-                value=st.session_state["office_notice"]
-            )
-            submit_notice = st.form_submit_button("Update Notice Banner")
-            
-            if submit_notice:
-                st.session_state["office_notice"] = notice_input
-                st.success("Office notification updated!")
-                st.rerun()
-                
-    st.markdown("---")
-
-# ---------------------------------------------------------
-# 8. Search Interface & Logic
-# ---------------------------------------------------------
-selected_negeri = st.selectbox(
-    "Select or filter by Negeri (State):", 
-    [
-        "KLANG VALLEY (KUALA LUMPUR & SELANGOR)", "ALL", "SELANGOR", 
-        "KUALA LUMPUR", "JOHOR", "PENANG", "PERAK", "MELAKA", 
-        "NEGERI SEMBILAN", "PAHANG", "KELANTAN", "TERENGGANU", 
-        "KEDAH", "PERLIS", "SABAH", "SARAWAK"
+# =============================================================================
+# TAB 1: LIVE MALAYSIA PROPERTY NEWS
+# =============================================================================
+with tab_news:
+    st.header("📰 Live Malaysian Property News & Insights")
+    NEWS_FEED_URLS = [
+        "https://news.google.com/rss/search?q=property+malaysia+real+estate&hl=en-MY&gl=MY&ceid=MY:en",
+        "https://theedgemalaysia.com/rss/property",
+        "https://www.starproperty.my/rss.xml"
     ]
-)
 
-match_type = st.radio(
-    "Select Search Match Type:", 
-    ["Exact Match for name and ic", "Similar (Partial Match for phone search exclude 60)"], 
-    horizontal=True
-)
+    @st.cache_data(ttl=1800)
+    def fetch_property_news():
+        for url in NEWS_FEED_URLS:
+            try:
+                feed = feedparser.parse(url)
+                if feed.entries:
+                    return feed.entries
+            except Exception:
+                continue
+        return []
 
-search_query = st.text_input("Enter Name, IC, or Phone to search:")
-
-if search_query:
-    if user_usage >= max_quota and not st.session_state["is_admin"]:
-        st.error(f"⛔ You have reached your monthly limit of {max_quota} searches. Please contact the administrator.")
-        st.stop()
-
-    st.session_state["usage"][current_user] = user_usage + 1
-
-    st.session_state["user_logs"].append({
-        "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "User": current_user,
-        "Query": search_query,
-        "Match Type": match_type
-    })
-
-    safe_query = search_query.replace("'", "\\'")
-    
-    if match_type == "Exact Match for name and ic":
-        sql_query = f"""
-            SELECT * FROM `mysej-510709.mysej.combined_data`
-            WHERE (LOWER(Nama) = '{safe_query.lower()}'
-               OR CAST(nokp AS STRING) = '{safe_query}'
-               OR LOWER(tel1) = '{safe_query.lower()}'
-            )
-        """
-    else:
-        sql_query = f"""
-            SELECT * FROM `mysej-510709.mysej.combined_data`
-            WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%'
-               OR CAST(nokp AS STRING) LIKE '%{safe_query.lower()}%'
-               OR LOWER(tel1) LIKE '%{safe_query.lower()}%'
-            )
-        """
-    
-    if selected_negeri == "KLANG VALLEY (KUALA LUMPUR & SELANGOR)":
-        sql_query += f" AND UPPER(negeri) IN ('KUALA LUMPUR', 'SELANGOR')"
-    elif selected_negeri != "ALL":
-        sql_query += f" AND UPPER(negeri) = '{selected_negeri}'"
-        
-    sql_query += " LIMIT 100"
-
-    try:
-        with st.spinner("Querying BigQuery dataset..."):
-            query_job = client.query(sql_query)
-            
-            # Fetch raw rows and manually force nokp, IC, tel1 to raw strings
-            raw_rows = []
-            columns = []
-            
-            for row in query_job:
-                if not columns:
-                    columns = list(row.keys())
-                
-                row_dict = {}
-                for key, value in row.items():
-                    # Force ID and phone columns to clean unformatted strings
-                    if key in ['nokp', 'IC', 'ICLama', 'tel1'] and value is not None:
-                        # Convert float/int representations back to a clean flat string
-                        str_val = str(value)
-                        if '.' in str_val:
-                            str_val = str_val.split('.')[0]
-                        if 'E' in str_val or 'e' in str_val:
-                            # If scientific notation slipped through, parse it safely
-                            try:
-                                str_val = f"{int(float(value))}"
-                            except:
-                                pass
-                        row_dict[key] = str_val
-                    else:
-                        row_dict[key] = "" if value is None else value
-                raw_rows.append(row_dict)
-
-            df = pd.DataFrame(raw_rows)
-
-            if not df.empty:
-                hidden_columns = [
-                    'Jastina', 'Kodlokaliti', 'NamaParlimen', 
-                    'NamaDM', 'NameDUN', 'KategoriPemilih', 
-                    'name_tel', 'Unnamed__0'
-                ]
-                available_cols = [col for col in df.columns if col not in hidden_columns]
-                
-                front_cols = []
-                for col_name in ['nokp', 'Nama', 'tel1', 'IC']:
-                    if col_name in available_cols:
-                        front_cols.append(col_name)
-                        
-                display_cols = front_cols + [col for col in available_cols if col not in front_cols]
-                filtered_df = df[display_cols]
-
-                if 'nokp' in filtered_df.columns:
-                    filtered_df = filtered_df.sort_values(by='nokp', ascending=True)
-
-                st.success(f"Found {len(filtered_df)} matching records.")
-                st.dataframe(
-                    filtered_df, 
-                    use_container_width=True,
-                    column_config={
-                        "nokp": st.column_config.TextColumn("nokp"),
-                        "IC": st.column_config.TextColumn("IC"),
-                        "tel1": st.column_config.TextColumn("tel1"),
-                        "ICLama": st.column_config.TextColumn("ICLama")
-                    }
-                )
+    for entry in fetch_property_news()[:6]:
+        col_img, col_text = st.columns([1, 2.5])
+        image_url = entry.media_content[0].get('url') if 'media_content' in entry and entry.media_content else None
+        with col_img:
+            if image_url:
+                st.image(image_url, use_column_width=True)
             else:
-                st.info("No matching records found in the database.")
-    except Exception as e:
-        st.error(f"An error occurred while executing the query: {e}")
+                st.info("🖼️ Property News")
+        with col_text:
+            st.markdown(f"### [{entry.title}]({entry.link})")
+            st.caption(f"🗓️ Published: {entry.get('published', 'Recent')[:16]}")
+        st.markdown("---")
+
+
+# =============================================================================
+# TAB 2: MORTGAGE + LEGAL FEES + STAMP DUTY
+# =============================================================================
+with tab_mortgage:
+    st.header("🏦 Mortgage, Legal Fees & Stamp Duty Calculator")
+    
+    @st.cache_data(ttl=86400)
+    def get_daily_bank_rates():
+        return {
+            "Maybank": {"Residential": 3.85, "Commercial": 4.50},
+            "Public Bank": {"Residential": 3.90, "Commercial": 4.60},
+            "CIMB Bank": {"Residential": 3.88, "Commercial": 4.55},
+            "Hong Leong Bank": {"Residential": 3.92, "Commercial": 4.65},
+            "RHB Bank": {"Residential": 3.89, "Commercial": 4.55},
+            "AmBank": {"Residential": 3.95, "Commercial": 4.70}
+        }
+    bank_rates_data = get_daily_bank_rates()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        prop_cat = st.radio("Property Category", ["Residential", "Commercial"], horizontal=True)
+        selected_bank = st.selectbox("Select Bank Profile", list(bank_rates_data.keys()))
+        default_rate = float(bank_rates_data[selected_bank][prop_cat])
+
+        prop_price = st.number_input("Property Purchase Price (RM)", min_value=50000, value=600000, step=50000)
+        margin_finance = st.slider("Margin of Finance (%)", min_value=10, max_value=90, value=90, step=5)
+        loan_amt = prop_price * (margin_finance / 100)
+        interest_rate = st.number_input("Interest Rate (% p.a.)", min_value=1.0, value=default_rate, step=0.05)
+        loan_tenure = st.slider("Loan Tenure (Years)", min_value=5, max_value=35, value=30, step=1)
+
+    def calc_legal_fee(price):
+        return max(500, price * 0.0125) if price <= 500000 else (500000 * 0.0125) + ((price - 500000) * 0.01)
+
+    def calc_mot_stamp_duty(price):
+        if price <= 100000: return price * 0.01
+        elif price <= 500000: return 1000 + (price - 100000) * 0.02
+        elif price <= 1000000: return 9000 + (price - 500000) * 0.03
+        else: return 24000 + (price - 1000000) * 0.04
+
+    spa_legal = calc_legal_fee(prop_price)
+    loan_legal = calc_legal_fee(loan_amt)
+    mot_sd = calc_mot_stamp_duty(prop_price)
+    loan_sd = loan_amt * 0.005
+    total_fees = spa_legal + loan_legal + mot_sd + loan_sd + ((spa_legal + loan_legal) * 0.08 + 2000)
+    
+    monthly_i = (interest_rate / 100) / 12
+    m_pay = loan_amt * (monthly_i * (1 + monthly_i)**(loan_tenure * 12)) / ((1 + monthly_i)**(loan_tenure * 12) - 1) if monthly_i > 0 else loan_amt / (loan_tenure * 12)
+
+    with col2:
+        st.metric("Estimated Monthly Installment", f"RM {m_pay:,.2f}")
+        st.metric("Total Upfront Cash Needed", f"RM {(prop_price - loan_amt + total_fees):,.2f}")
+
+
+# =============================================================================
+# TAB 3: TENANCY STAMP DUTY CALCULATOR
+# =============================================================================
+with tab_tenancy:
+    st.header("📜 Tenancy Agreement Stamp Duty Calculator")
+    m_rent = st.number_input("Monthly Rental Amount (RM)", min_value=100, value=2500, step=100)
+    lease_term = st.selectbox("Lease Duration", ["1 Year or less", "1 to 3 Years", "3 to 5 Years", "Above 5 Years"])
+    annual_r = m_rent * 12
+    units = math.ceil(annual_r / 250)
+    rate = 1.0 if "1 Year" in lease_term else (3.0 if "1 to 3" in lease_term else (5.0 if "3 to 5" in lease_term else 7.0))
+    st.metric("Total LHDN Stamp Duty Payable", f"RM {max(10, units * rate):,.2f}")
+
+
+# =============================================================================
+# TAB 4: MALAYSIA BUDGET HIGHLIGHTS
+# =============================================================================
+with tab_budget:
+    st.header("📊 Malaysia Budget Real Estate Highlights")
+    st.markdown("""
+    * **First-Time Homebuyers:** 100% Stamp Duty Exemption on MOT & Loan Agreements for homes up to RM500,000.
+    * **SJKP Housing Scheme:** Government guarantees expanded to RM10 Billion for gig-workers and freelancers.
+    * **Commercial Conversion:** Special 10% tax deduction on qualifying expenses for commercial-to-residential conversions.
+    """)
+
+
+# =============================================================================
+# TAB 5: PROFESSIONAL SERVICES DIRECTORY
+# =============================================================================
+with tab_contacts:
+    st.header("📞 Professional Property Services Directory")
+    services = [
+        ("⚡ Utility Application (TNB & Syabas)", "Rex", "+60163600369", "60163600369", "Hello Rex, I would like to inquire about utility application services."),
+        ("📑 LHDN Stamping Service", "Rex", "+60163600369", "60163600369", "Hello Rex, I need assistance with document stamping services."),
+        ("📐 Property Valuation Service", "Tony Chin", "+60123718228", "60123718228", "Hello Tony, I would like to request a property valuation check."),
+        ("💳 Mortgage & Loan Consultant", "Ms. Jovell Khor", "+60162725908", "60162725908", "Hello Ms. Jovell, I would like to consult on loan eligibility."),
+        ("🔨 Renovation, Plumbing & Repairs", "Tonni Yu", "+60129108392", "60129108392", "Hello Tonni, I am looking for property renovation and repair services.")
+    ]
+    for s_name, contact, phone, clean_p, msg in services:
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            st.subheader(s_name)
+            st.write(f"**Contact:** {contact} ({phone})")
+        with c2:
+            st.link_button(f"💬 WhatsApp {contact}", f"https://wa.me/{clean_p}?text={msg.replace(' ', '%20')}", use_container_width=True)
+        st.markdown("---")
