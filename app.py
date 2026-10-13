@@ -127,7 +127,7 @@ tab_search, tab_news, tab_mortgage, tab_tenancy, tab_budget, tab_contacts = st.t
 ])
 
 # =============================================================================
-# TAB 0: ELITE SEARCH ENGINE (OPTIMIZED WIDTHS, AGE POSITION & GLOBAL SEARCH)
+# TAB 0: ELITE SEARCH ENGINE (WITH BANDAR SLICER FILTER)
 # =============================================================================
 with tab_search:
     st.header("🔍 Commercial & Dataset Search Interface")
@@ -241,7 +241,6 @@ with tab_search:
                        OR LOWER(tel1) = '{safe_query.lower()}')
                 """
             else:
-                # Similar match searching across all relevant text/string columns safely
                 sql_query = f"""
                     SELECT * FROM `mysej-510709.mysej.combined_data` 
                     WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%' 
@@ -302,9 +301,17 @@ with tab_search:
                             if 'IC' in df.columns:
                                 df['Age'] = df['IC'].apply(derive_age_from_ic)
 
-                            # Hide requested columns (Jantina, NamaDUN, Poskod, Jastina, Bangsa, etc.)
+                            # Bandar Slicer Filter Logic (if 'Bandar' column exists in dataset)
+                            if 'Bandar' in df.columns:
+                                unique_bandar = sorted([str(b) for b in df['Bandar'].dropna().unique() if str(b).strip() != ""])
+                                if unique_bandar:
+                                    selected_bandar = st.multiselect("📍 Filter by Bandar (Town/City):", unique_bandar, default=[])
+                                    if selected_bandar:
+                                        df = df[df['Bandar'].astype(str).isin(selected_bandar)]
+
+                            # Hide requested columns
                             hidden_columns = [
-                                'nokp', 'Jastina', 'jantina', 'Jantina', 
+                                'Age', 'nokp', 'Jastina', 'jantina', 'Jantina', 
                                 'NameDUN', 'NamaDun', 'namaDun', 'namadun', 
                                 'Poskod', 'poskod', 
                                 'Bangsa', 'bangsa', 'nama_tel', 
@@ -313,7 +320,7 @@ with tab_search:
                             ]
                             available_cols = [col for col in df.columns if col not in hidden_columns]
                             
-                            # Place Age right after tel1 in display order
+                            # Place Age right after tel1
                             front_cols = []
                             for col_name in ['IC', 'Nama', 'tel1', 'Age', 'NamaLokaliti', 'Alamat2']:
                                 if col_name in available_cols:
@@ -327,7 +334,6 @@ with tab_search:
 
                             st.success(f"Found {len(filtered_df)} matching records.")
                             
-                            # Set IC and tel1 to medium width (preventing them from being overly wide)
                             st.dataframe(
                                 filtered_df, 
                                 use_container_width=True,
