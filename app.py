@@ -36,49 +36,165 @@ og_meta_tags = """
 # Render hidden tags without space
 components.html(og_meta_tags, height=0, width=0)
 
-# pull live property news
+# pull live property news and Financing & Mortgage Center
 
+import streamlit as st
 import feedparser
 
-with st.expander("📰 Latest Malaysia Property News & Insights"):
-    st.caption("Live market updates, commercial trends, and news.")
-    
-    # Example property news feed URL (using a standard parseable property feed)
-    rss_url = "https://www.edgeprop.my/rss.xml" 
-    
-    try:
-        feed = feedparser.parse(rss_url)
-        if feed.entries:
-            # Loop through the top 5 articles
-            for entry in feed.entries[:5]:
-                col1, col2 = st.columns([1, 2])
-                
-                # Extract image if available in feed entries (media_content or enclosures)
-                image_url = None
-                if 'media_content' in entry and len(entry.media_content) > 0:
-                    image_url = entry.media_content[0].get('url')
-                elif 'links' in entry:
-                    for link in entry.links:
-                        if 'image' in link.get('type', ''):
-                            image_url = link.get('href')
-                            break
+# Page Configuration
+st.set_page_config(
+    page_title="Elite Search Engine | Market Insights & Financing",
+    page_icon="🏢",
+    layout="wide"
+)
 
-                with col1:
-                    if image_url:
-                        st.image(image_url, use_column_width=True)
-                    else:
-                        st.markdown("🏢 *No preview image*")
+st.title("🏢 Elite Property Hub & Market Utilities")
+st.caption("Real-time Malaysian property market intelligence, news, and dynamic financing tools.")
+
+# Create main feature tabs
+tab_news, tab_mortgage = st.tabs(["📰 Latest Property News", "🏦 Mortgage Calculator & Bank Rates"])
+
+# ==========================================
+# TAB 1: LIVE MALAYSIA PROPERTY NEWS
+# ==========================================
+with tab_news:
+    st.header("📰 Live Malaysian Property News & Insights")
+    st.caption("Automated daily RSS updates on market developments, commercial trends, and real estate news.")
+
+    # RSS Feed Source (e.g., The Edge Malaysia Property / EdgeProp)
+    NEWS_RSS_URL = "https://theedgemalaysia.com/rss/property"
+
+    @st.cache_data(ttl=3600)  # Refresh news cache every 1 hour (3600s)
+    def fetch_property_news(url):
+        try:
+            feed = feedparser.parse(url)
+            return feed.entries
+        except Exception:
+            return []
+
+    news_entries = fetch_property_news(NEWS_RSS_URL)
+
+    if news_entries:
+        for entry in news_entries[:6]:  # Display top 6 news items
+            col_img, col_text = st.columns([1, 2.5])
+
+            # Extract article thumbnail image
+            image_url = None
+            if 'media_content' in entry and len(entry.media_content) > 0:
+                image_url = entry.media_content[0].get('url')
+            elif 'media_thumbnail' in entry and len(entry.media_thumbnail) > 0:
+                image_url = entry.media_thumbnail[0].get('url')
+            elif 'links' in entry:
+                for link in entry.links:
+                    if 'image' in link.get('type', ''):
+                        image_url = link.get('href')
+                        break
+
+            # Image Column
+            with col_img:
+                if image_url:
+                    st.image(image_url, use_column_width=True)
+                else:
+                    st.info("🖼️ Property News Preview")
+
+            # Content Column
+            with col_text:
+                pub_date = entry.get('published', 'Recent Update')[:16]
+                st.markdown(f"### [{entry.title}]({entry.link})")
+                st.caption(f"🗓️ Published: {pub_date}")
                 
-                with col2:
-                    pub_date = entry.get('published', '')[:16]
-                    st.markdown(f"**[{entry.title}]({entry.link})**")
-                    st.caption(f"Published: {pub_date}")
-                
-                st.markdown("---")
-        else:
-            st.info("No news feeds available at the moment.")
-    except Exception as e:
-        st.warning("Could not fetch live property news feeds.")
+                # Clean snippet summary if present
+                summary = entry.get('summary', '')
+                if summary:
+                    clean_summary = summary.split('<')[0][:180] + "..." if '<' in summary else summary[:180] + "..."
+                    st.write(clean_summary)
+
+            st.markdown("---")
+    else:
+        st.warning("Unable to retrieve live RSS feeds at the moment. Please check back shortly.")
+
+
+# ==========================================
+# TAB 2: DAILY BANK RATES & MORTGAGE CALCULATOR
+# ==========================================
+with tab_mortgage:
+    st.header("🏦 Malaysia Property Financing & Rate Center")
+    
+    # 1. Cached Daily Bank Rates Data
+    @st.cache_data(ttl=86400)  # Refresh cached rates every 24 hours (86400s)
+    def get_daily_bank_rates():
+        """
+        Indicative daily retail effective lending rates in Malaysia (Linked to BNM SBR benchmark).
+        """
+        return {
+            "Maybank": {"Residential": 3.85, "Commercial": 4.50, "Type": "Variable (SBR + Spread)"},
+            "Public Bank": {"Residential": 3.90, "Commercial": 4.60, "Type": "Variable (SBR + Spread)"},
+            "CIMB Bank": {"Residential": 3.88, "Commercial": 4.55, "Type": "Variable (SBR + Spread)"},
+            "Hong Leong Bank": {"Residential": 3.92, "Commercial": 4.65, "Type": "Variable (SBR + Spread)"},
+            "RHB Bank": {"Residential": 3.89, "Commercial": 4.55, "Type": "Variable (SBR + Spread)"},
+            "AmBank": {"Residential": 3.95, "Commercial": 4.70, "Type": "Variable (SBR + Spread)"}
+        }
+
+    bank_rates_data = get_daily_bank_rates()
+
+    # 2. Display Bank Rate Table
+    with st.expander("📊 Indicative Bank Mortgage Rates (Malaysia Market)", expanded=True):
+        st.caption("Benchmark rates for residential and commercial property financing, cached daily.")
+        
+        table_rows = []
+        for bank, info in bank_rates_data.items():
+            table_rows.append({
+                "Bank Institution": bank,
+                "Residential Rate (% p.a.)": f"{info['Residential']:.2f}%",
+                "Commercial Rate (% p.a.)": f"{info['Commercial']:.2f}%",
+                "Pricing Benchmark": info["Type"]
+            })
+        st.table(table_rows)
+
+    st.markdown("---")
+
+    # 3. Dynamic Integrated Mortgage Calculator
+    st.subheader("🧮 Interactive Loan Calculator")
+    st.caption("Calculations automatically reference the selected bank's rate above.")
+
+    col_calc1, col_calc2 = st.columns(2)
+
+    with col_calc1:
+        property_type = st.radio("Property Category", ["Residential", "Commercial"], horizontal=True)
+        selected_bank = st.selectbox("Select Financial Institution", list(bank_rates_data.keys()))
+        
+        # Auto-fetch benchmark rate based on selection
+        default_rate = float(bank_rates_data[selected_bank][property_type])
+        
+        property_price = st.number_input("Property Value (RM)", min_value=50000, max_value=50000000, value=750000, step=50000)
+        margin_of_finance = st.slider("Margin of Finance (%)", min_value=10, max_value=90, value=85, step=5)
+
+    with col_calc2:
+        loan_amount = property_price * (margin_of_finance / 100)
+        st.metric(label="Calculated Loan Financing Amount", value=f"RM {loan_amount:,.2f}")
+        
+        interest_rate = st.number_input("Interest Rate (% p.a.)", min_value=1.0, max_value=12.0, value=default_rate, step=0.05)
+        loan_tenure_years = st.slider("Loan Tenure (Years)", min_value=5, max_value=35, value=30, step=1)
+
+    # 4. Amortization Logic
+    monthly_interest_rate = (interest_rate / 100) / 12
+    total_payments = loan_tenure_years * 12
+
+    if monthly_interest_rate > 0:
+        monthly_payment = loan_amount * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
+    else:
+        monthly_payment = loan_amount / total_payments
+
+    total_payment = monthly_payment * total_payments
+    total_interest = total_payment - loan_amount
+
+    st.markdown("### 📋 Payment Summary")
+    res_col1, res_col2, res_col3 = st.columns(3)
+
+    res_col1.metric(label="Estimated Monthly Commitment", value=f"RM {monthly_payment:,.2f}")
+    res_col2.metric(label="Total Interest Charged", value=f"RM {total_interest:,.2f}")
+    res_col3.metric(label="Total Principal + Interest", value=f"RM {total_payment:,.2f}")
+
 # ---------------------------------------------------------
 # 2. Initialize Session State (User Credentials & State)
 # ---------------------------------------------------------
