@@ -155,7 +155,6 @@ with tab_search:
         max_quota = st.session_state["quotas"].get(current_user, 500)
         user_usage = st.session_state["usage"].get(current_user, 0)
 
-        # Sidebar user controls & Admin toggle
         st.sidebar.write(f"👤 Logged in as: **{current_user}**")
         st.sidebar.write(f"📊 Usage: **{user_usage} / {max_quota} searches**")
 
@@ -305,7 +304,7 @@ with tab_search:
 
 
 # =============================================================================
-# TAB 1: LIVE MALAYSIA PROPERTY NEWS
+# TAB 1: LIVE MALAYSIA PROPERTY NEWS (FIXED IMAGE EXTRACTION)
 # =============================================================================
 with tab_news:
     st.header("📰 Live Malaysian Property News & Insights")
@@ -330,22 +329,48 @@ with tab_news:
     if entries:
         for entry in entries[:6]:
             col_img, col_text = st.columns([1, 2.5])
-            image_url = entry.media_content[0].get('url') if 'media_content' in entry and entry.media_content else None
+            
+            # Robust image extraction supporting media_content, media_thumbnail, enclosures, and inline thumbnails
+            image_url = None
+            if hasattr(entry, 'media_content') and entry.media_content:
+                image_url = entry.media_content[0].get('url')
+            elif hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+                image_url = entry.media_thumbnail[0].get('url')
+            elif hasattr(entry, 'enclosures') and entry.enclosures:
+                for enc in entry.enclosures:
+                    if 'image' in enc.get('type', ''):
+                        image_url = enc.get('href')
+                        break
+            elif hasattr(entry, 'links') and entry.links:
+                for link in entry.links:
+                    if 'image' in link.get('type', ''):
+                        image_url = link.get('href')
+                        break
+
             with col_img:
                 if image_url:
-                    st.image(image_url, use_column_width=True)
+                    try:
+                        st.image(image_url, use_column_width=True)
+                    except Exception:
+                        st.info("🖼️ Property News")
                 else:
                     st.info("🖼️ Property News")
+
             with col_text:
                 st.markdown(f"### [{entry.title}]({entry.link})")
-                st.caption(f"🗓️ Published: {entry.get('published', 'Recent')[:16]}")
+                st.caption(f"🗓️ Published: {entry.get('published', entry.get('updated', 'Recent'))[:16]}")
+                summary = entry.get('summary', '')
+                if summary:
+                    clean_summary = summary.split('<')[0][:180] + "..." if '<' in summary else summary[:180] + "..."
+                    st.write(clean_summary)
+
             st.markdown("---")
     else:
         st.info("Live news feeds are currently updating. Please check back shortly.")
 
 
 # =============================================================================
-# TAB 2: MORTGAGE + LEGAL FEES + STAMP DUTY
+# TAB 2: MORTGAGE + LEGAL FEES + STAMP DUTY (LPPSA & SJKP SUPPORT)
 # =============================================================================
 with tab_mortgage:
     st.header("🏦 Mortgage, Legal Fees & Stamp Duty Calculator")
@@ -365,14 +390,26 @@ with tab_mortgage:
     col1, col2 = st.columns(2)
     with col1:
         prop_cat = st.radio("Property Category", ["Residential", "Commercial"], horizontal=True)
+        
+        # Financing scheme selector
+        financing_scheme = st.selectbox(
+            "Financing Scheme", 
+            ["Standard Commercial Bank", "LPPSA (Government Servant)", "SJKP (Housing Credit Guarantee)"]
+        )
+        
         selected_bank = st.selectbox("Select Bank Profile", list(bank_rates_data.keys()))
         default_rate = float(bank_rates_data[selected_bank][prop_cat])
 
         prop_price = st.number_input("Property Purchase Price (RM)", min_value=50000, value=600000, step=50000)
         is_first_home = st.checkbox("First-Time Homebuyer (100% MOT & Loan Stamp Duty Exemption up to RM500k)", value=False)
-        margin_finance = st.slider("Margin of Finance (%)", min_value=10, max_value=90, value=90, step=5)
         
-        loan_amt = prop_price * (margin_finance / 100)
+        # Default margins: Residential = 90%, Commercial = 85% (Allow up to 100% for LPPSA / SJKP)
+        default_mof = 100.0 if financing_scheme in ["LPPSA (Government Servant)", "SJKP (Housing Credit Guarantee)"] else (90 if prop_cat == "Residential" else 85)
+        max_mof_limit = 100.0 if financing_scheme in ["LPPSA (Government Servant)", "SJKP (Housing Credit Guarantee)"] else 90.0
+        
+        margin_finance = st.slider("Margin of Finance (%)", min_value=10.0, max_value=max_mof_limit, value=float(default_mof), step=1.0)
+        
+        loan_amt = prop_price * (margin_finance / 100.0)
         downpayment = prop_price - loan_amt
         interest_rate = st.number_input("Interest Rate (% p.a.)", min_value=1.0, value=default_rate, step=0.05)
         loan_tenure = st.slider("Loan Tenure (Years)", min_value=5, max_value=35, value=30, step=1)
@@ -389,7 +426,6 @@ with tab_mortgage:
     spa_legal = calc_legal_fee(prop_price)
     loan_legal = calc_legal_fee(loan_amt)
     
-    # Exemption logic for first-time buyers under RM500k
     if is_first_home and prop_price <= 500000:
         mot_sd = 0.0
         loan_sd = 0.0
@@ -399,10 +435,11 @@ with tab_mortgage:
 
     sst_disb = (spa_legal + loan_legal) * 0.08 + 2000
     total_legal_and_stamp = spa_legal + loan_legal + mot_sd + loan_sd + sst_disb
-    total_upfront_cash = downpayment + total_legal_and_stamp
+    total_upfront_cash = max(0.0, downpayment + total_legal_and_stamp)
     
-    monthly_i = (interest_rate / 100) / 12
-    m_pay = loan_amt * (monthly_i * (1 + monthly_i)**(loan_tenure * 12)) / ((1 + monthly_i)**(loan_tenure * 12) - 1) if monthly_i > 0 else loan_amt / (loan_tenure * 12)
+    monthly_i = (interest_rate / 100.0) / 12.0
+    total_months = loan_tenure * 12
+    m_pay = loan_amt * (monthly_i * (1 + monthly_i)**total_months) / ((1 + monthly_i)**total_months - 1) if monthly_i > 0 else loan_amt / total_months
 
     with col2:
         st.metric("Estimated Monthly Installment", f"RM {m_pay:,.2f}")
@@ -441,7 +478,7 @@ with tab_budget:
     st.header(f"📊 Malaysia Budget {current_year} Real Estate & Housing Policy Summary")
     st.markdown(f"""
     * **First-Time Homebuyers ({current_year}):** 100% Stamp Duty Exemption on MOT & Loan Agreements for residential homes priced up to RM500,000.
-    * **SJKP Housing Credit Guarantee:** Expanded government financing up to RM10 Billion supporting gig-workers and self-employed buyers.
+    * **SJKP Housing Credit Guarantee:** Expanded government financing up to RM20 Billion supporting gig-workers and self-employed buyers.
     * **Commercial Conversion:** Special 10% tax deduction on qualifying expenses for commercial-to-residential adaptive reuse projects.
     """)
 
