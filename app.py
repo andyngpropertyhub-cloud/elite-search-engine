@@ -127,7 +127,7 @@ tab_search, tab_news, tab_mortgage, tab_tenancy, tab_budget, tab_contacts = st.t
 ])
 
 # =============================================================================
-# TAB 0: ELITE SEARCH ENGINE (BIGQUERY INTERFACE WITH SPECIFIC HIDDEN COLUMNS)
+# TAB 0: ELITE SEARCH ENGINE (OPTIMIZED WIDTHS, AGE POSITION & GLOBAL SEARCH)
 # =============================================================================
 with tab_search:
     st.header("🔍 Commercial & Dataset Search Interface")
@@ -237,15 +237,21 @@ with tab_search:
                     SELECT * FROM `mysej-510709.mysej.combined_data` 
                     WHERE (LOWER(Nama) = '{safe_query.lower()}' 
                        OR CAST(IC AS STRING) = '{safe_query}' 
+                       OR CAST(ICLama AS STRING) = '{safe_query}' 
                        OR LOWER(tel1) = '{safe_query.lower()}')
                 """
             else:
+                # Similar match searching across all relevant text/string columns safely
                 sql_query = f"""
                     SELECT * FROM `mysej-510709.mysej.combined_data` 
                     WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%' 
                        OR CAST(IC AS STRING) LIKE '%{safe_query.lower()}%' 
+                       OR CAST(ICLama AS STRING) LIKE '%{safe_query.lower()}%' 
                        OR LOWER(NamaLokaliti) LIKE '%{safe_query.lower()}%' 
+                       OR LOWER(Alamat1) LIKE '%{safe_query.lower()}%' 
                        OR LOWER(Alamat2) LIKE '%{safe_query.lower()}%' 
+                       OR LOWER(Alamat3) LIKE '%{safe_query.lower()}%' 
+                       OR LOWER(negeri) LIKE '%{safe_query.lower()}%' 
                        OR LOWER(tel1) LIKE '%{clean_phone_query.lower()}%')
                 """
             
@@ -266,7 +272,7 @@ with tab_search:
                                 columns = list(row.keys())
                             row_dict = {}
                             for k, v in row.items():
-                                if k in ['nokp', 'IC', 'ICLama', 'tel1'] and v is not None:
+                                if k in ['nokp', 'IC', 'ICLama', 'tel1', 'Poskod', 'poskod'] and v is not None:
                                     str_val = str(v).split('.')[0]
                                     row_dict[k] = str_val
                                 else:
@@ -275,7 +281,7 @@ with tab_search:
 
                         df = pd.DataFrame(raw_rows)
                         if not df.empty:
-                            # Derive age internally from column IC (retained in df framework logic)
+                            # Derive age internally from column IC
                             def derive_age_from_ic(ic_str):
                                 if not ic_str or len(ic_str) < 6:
                                     return None
@@ -296,16 +302,20 @@ with tab_search:
                             if 'IC' in df.columns:
                                 df['Age'] = df['IC'].apply(derive_age_from_ic)
 
-                            # Explicitly hide Age, Jastina, NameDun / NamaDun, Bangsa, nama_tel, and nokp
+                            # Hide requested columns (Jantina, NamaDUN, Poskod, Jastina, Bangsa, etc.)
                             hidden_columns = [
-                                'age','nokp', 'Jastina', 'NameDUN', 'NamaDun', 'namaDun', 
-                                'Bangsa', 'bangsa', 'nama_tel', 'Kodlokaliti', 'NamaParlimen', 
-                                'NamaDM', 'KategoriPemilih', 'Unnamed__0'
+                                'nokp', 'Jastina', 'jantina', 'Jantina', 
+                                'NameDUN', 'NamaDun', 'namaDun', 'namadun', 
+                                'Poskod', 'poskod', 
+                                'Bangsa', 'bangsa', 'nama_tel', 
+                                'Kodlokaliti', 'NamaParlimen', 'NamaDM', 
+                                'KategoriPemilih', 'Unnamed__0'
                             ]
                             available_cols = [col for col in df.columns if col not in hidden_columns]
                             
+                            # Place Age right after tel1 in display order
                             front_cols = []
-                            for col_name in ['IC', 'Nama', 'tel1', 'age', 'NamaLokaliti', 'Alamat2']:
+                            for col_name in ['IC', 'Nama', 'tel1', 'Age', 'NamaLokaliti', 'Alamat2']:
                                 if col_name in available_cols:
                                     front_cols.append(col_name)
                                     
@@ -317,13 +327,13 @@ with tab_search:
 
                             st.success(f"Found {len(filtered_df)} matching records.")
                             
-                            # IC and tel1 set to large/full width; all other columns remain normal
+                            # Set IC and tel1 to medium width (preventing them from being overly wide)
                             st.dataframe(
                                 filtered_df, 
                                 use_container_width=True,
                                 column_config={
-                                    "IC": st.column_config.TextColumn("IC", width="large"),
-                                    "tel1": st.column_config.TextColumn("tel1", width="large")
+                                    "IC": st.column_config.TextColumn("IC", width="medium"),
+                                    "tel1": st.column_config.TextColumn("tel1", width="medium")
                                 }
                             )
                         else:
