@@ -127,7 +127,7 @@ tab_search, tab_news, tab_mortgage, tab_tenancy, tab_budget, tab_contacts = st.t
 ])
 
 # =============================================================================
-# TAB 0: ELITE SEARCH ENGINE (WITH BANDAR SLICER FILTER)
+# TAB 0: ELITE SEARCH ENGINE (CENTRALIZED ADMIN LOGGING & USAGE TRACKING)
 # =============================================================================
 with tab_search:
     st.header("🔍 Commercial & Dataset Search Interface")
@@ -174,10 +174,22 @@ with tab_search:
             with st.expander("📊 Admin Dashboard & Management", expanded=True):
                 admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs(["Usage & Logs", "Manage Users", "Manage Birthdays", "Office Notice"])
                 with admin_tab1:
+                    st.write("### Global User Usage & Activity Logs")
                     if st.session_state["usage"]:
-                        st.dataframe([{"User": u, "Searches Used": c, "Quota": st.session_state["quotas"].get(u, 500)} for u, c in st.session_state["usage"].items()], use_container_width=True)
+                        usage_data = [
+                            {"User": u, "Searches Used": count, "Quota Limit": st.session_state["quotas"].get(u, 500)} 
+                            for u, count in st.session_state["usage"].items()
+                        ]
+                        st.dataframe(usage_data, use_container_width=True)
+                        st.write(f"**Total Searches Across All Users:** {sum(st.session_state['usage'].values())}")
+                    else:
+                        st.info("No search usage recorded yet.")
+                        
+                    st.write("### Recent Activity Logs")
                     if st.session_state["user_logs"]:
-                        st.dataframe(st.session_state["user_logs"][-10:], use_container_width=True)
+                        st.dataframe(st.session_state["user_logs"][-15:], use_container_width=True)
+                    else:
+                        st.info("No activity logs recorded yet.")
                 with admin_tab2:
                     with st.form("add_user_form"):
                         nu = st.text_input("New Username:").strip().lower()
@@ -221,6 +233,7 @@ with tab_search:
                 st.error(f"⛔ Monthly limit of {max_quota} searches reached.")
                 st.stop()
 
+            # Increment usage and record logs cleanly
             st.session_state["usage"][current_user] = user_usage + 1
             st.session_state["user_logs"].append({
                 "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
@@ -280,7 +293,6 @@ with tab_search:
 
                         df = pd.DataFrame(raw_rows)
                         if not df.empty:
-                            # Derive age internally from column IC
                             def derive_age_from_ic(ic_str):
                                 if not ic_str or len(ic_str) < 6:
                                     return None
@@ -301,7 +313,6 @@ with tab_search:
                             if 'IC' in df.columns:
                                 df['Age'] = df['IC'].apply(derive_age_from_ic)
 
-                            # Bandar Slicer Filter Logic (if 'Bandar' column exists in dataset)
                             if 'Bandar' in df.columns:
                                 unique_bandar = sorted([str(b) for b in df['Bandar'].dropna().unique() if str(b).strip() != ""])
                                 if unique_bandar:
@@ -309,7 +320,6 @@ with tab_search:
                                     if selected_bandar:
                                         df = df[df['Bandar'].astype(str).isin(selected_bandar)]
 
-                            # Hide requested columns
                             hidden_columns = [
                                 'Age', 'nokp', 'Jastina', 'jantina', 'Jantina', 
                                 'NameDUN', 'NamaDun', 'namaDun', 'namadun', 
@@ -320,7 +330,6 @@ with tab_search:
                             ]
                             available_cols = [col for col in df.columns if col not in hidden_columns]
                             
-                            # Place Age right after tel1
                             front_cols = []
                             for col_name in ['IC', 'Nama', 'tel1', 'Age', 'NamaLokaliti', 'Alamat2']:
                                 if col_name in available_cols:
