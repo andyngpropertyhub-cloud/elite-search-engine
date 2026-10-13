@@ -13,6 +13,8 @@ import math
 # -----------------------------------------------------------------------------
 # 1. Page Configuration (MUST BE FIRST STREAMLIT CALL)
 # -----------------------------------------------------------------------------
+current_year = datetime.datetime.now().year
+
 st.set_page_config(
     page_title="Elite Search Engine | Property Market Utilities",
     page_icon="🏢",
@@ -20,7 +22,7 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 2. Initialize Session State (User Credentials & State)
+# 2. Initialize Session State
 # -----------------------------------------------------------------------------
 if "users" not in st.session_state:
     st.session_state["users"] = {
@@ -77,34 +79,7 @@ if "team_birthdays" not in st.session_state:
     ]
 
 # -----------------------------------------------------------------------------
-# 3. Login System Gate
-# -----------------------------------------------------------------------------
-if not st.session_state["authenticated"]:
-    st.title("🔒 Login to Elite Search Engine & Property Hub")
-    with st.form("login_form"):
-        username_input = st.text_input("Username:").strip().lower()
-        password_input = st.text_input("Password:", type="password")
-        submit_button = st.form_submit_button("Login")
-
-        if submit_button:
-            users_db = st.session_state["users"]
-            if username_input in users_db and users_db[username_input] == password_input:
-                st.session_state["authenticated"] = True
-                st.session_state["logged_user"] = username_input
-                if username_input not in st.session_state["usage"]:
-                    st.session_state["usage"][username_input] = 0
-                st.success(f"Welcome back, {username_input}!")
-                st.rerun()
-            else:
-                st.error("Invalid Username or Password. Please try again.")
-    st.stop()
-
-current_user = st.session_state["logged_user"]
-max_quota = st.session_state["quotas"].get(current_user, 500)
-user_usage = st.session_state["usage"].get(current_user, 0)
-
-# -----------------------------------------------------------------------------
-# 4. BigQuery Client Authentication Setup
+# 3. BigQuery Client Authentication Setup
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def get_bq_client():
@@ -119,34 +94,12 @@ def get_bq_client():
         creds_dict = dict(st.secrets["gcp_service_account"])
         return bigquery.Client(credentials=service_account.Credentials.from_service_account_info(creds_dict), project=project_id)
     else:
-        st.error("❌ BigQuery Service Account Credentials NOT found!")
-        st.stop()
+        return None
 
-try:
-    client = get_bq_client()
-except Exception as e:
-    client = None
+client = get_bq_client()
 
 # -----------------------------------------------------------------------------
-# 5. Sidebar Controls & Logout
-# -----------------------------------------------------------------------------
-st.sidebar.write(f"👤 Logged in as: **{current_user}**")
-st.sidebar.write(f"📊 Usage: **{user_usage} / {max_quota} searches**")
-
-if st.sidebar.button("Logout"):
-    st.session_state["authenticated"] = False
-    st.session_state["logged_user"] = None
-    st.rerun()
-
-st.sidebar.title("Admin Controls")
-st.session_state["is_admin"] = st.sidebar.checkbox(
-    "Enable Admin Mode", 
-    value=st.session_state["is_admin"], 
-    key="admin_mode_checkbox"
-)
-
-# -----------------------------------------------------------------------------
-# 6. Main App Header & Banners
+# 4. App Header & Public Office Notice (Visible Before Login)
 # -----------------------------------------------------------------------------
 st.title("🏢 Elite Property Hub & Search Engine")
 st.caption("Real-time Malaysian property market intelligence, calculators, legal tools, and directory.")
@@ -155,129 +108,200 @@ if st.session_state["office_notice"].strip():
     st.markdown(
         f"""
         <div style="background-color: #ff5252; padding: 12px; border-radius: 6px; text-align: center; color: #fff; margin-bottom: 15px; font-size: 16px; font-weight: bold;">
-            ⚠️ NOTICE: {st.session_state["office_notice"]}
+            ⚠️ OFFICE NOTICE: {st.session_state["office_notice"]}
         </div>
         """,
         unsafe_allow_html=True
     )
 
-current_month = datetime.date.today().month
-current_month_birthdays = [
-    b["name"] for b in st.session_state["team_birthdays"] 
-    if datetime.datetime.strptime(b["dob"], "%Y-%m-%d").month == current_month
-]
-
-banner_text = f"🎉 <b>Happy Birthday this month to: {', '.join(current_month_birthdays)}!</b>" if current_month_birthdays else "🧧 <b>Heng Ong Huat Ah!</b> Wishing everyone prosperity and great success! 🧧"
-
-st.markdown(
-    f"""
-    <div style="background-color: #ffeb3b; padding: 12px; border-radius: 6px; text-align: center; color: #000; margin-bottom: 20px; font-size: 16px;">
-        {banner_text}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
 # -----------------------------------------------------------------------------
-# 7. Main Navigation (6 Tabs View)
+# 5. Main Navigation (Tabs Available Before and After Login)
 # -----------------------------------------------------------------------------
 tab_search, tab_news, tab_mortgage, tab_tenancy, tab_budget, tab_contacts = st.tabs([
     "🔍 Elite Search Engine",
     "📰 Latest Property News", 
     "🏦 Mortgage, Legal Fees & Stamp Duty", 
     "📜 Tenancy Stamp Duty Calculator",
-    "📊 Malaysia Budget Highlights",
+    f"📊 Malaysia Budget {current_year}",
     "📞 Professional Services Directory"
 ])
 
 # =============================================================================
-# TAB 0: ELITE SEARCH ENGINE (BIGQUERY INTERFACE)
+# TAB 0: ELITE SEARCH ENGINE (BIGQUERY INTERFACE WITH LOGIN GATE)
 # =============================================================================
 with tab_search:
     st.header("🔍 Commercial & Dataset Search Interface")
-    
-    if st.session_state["is_admin"]:
-        with st.expander("📊 Admin Dashboard & Management"):
-            admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs(["Usage & Logs", "Manage Users", "Manage Birthdays", "Office Notice"])
-            with admin_tab1:
-                if st.session_state["usage"]:
-                    st.dataframe([{"User": u, "Searches Used": c, "Quota": st.session_state["quotas"].get(u, 500)} for u, c in st.session_state["usage"].items()], use_container_width=True)
-                if st.session_state["user_logs"]:
-                    st.dataframe(st.session_state["user_logs"][-10:], use_container_width=True)
-            with admin_tab2:
-                with st.form("add_user_form"):
-                    nu = st.text_input("New Username:").strip().lower()
-                    npw = st.text_input("New Password:", type="password")
-                    if st.form_submit_button("Create User") and nu and npw:
-                        st.session_state["users"][nu] = npw
-                        st.session_state["quotas"][nu] = 500
-                        st.success(f"User {nu} created!")
-                        st.rerun()
-            with admin_tab3:
-                with st.form("add_bday"):
-                    bname = st.text_input("Name:")
-                    bdob = st.date_input("DOB:")
-                    if st.form_submit_button("Add") and bname:
-                        st.session_state["team_birthdays"].append({"name": bname, "dob": bdob.strftime("%Y-%m-%d")})
-                        st.rerun()
-            with admin_tab4:
-                with st.form("notice_f"):
-                    not_in = st.text_area("Notice:", value=st.session_state["office_notice"])
-                    if st.form_submit_button("Update"):
-                        st.session_state["office_notice"] = not_in
-                        st.rerun()
 
-    selected_negeri = st.selectbox(
-        "Select or filter by Negeri (State):", 
-        ["KLANG VALLEY (KUALA LUMPUR & SELANGOR)", "ALL", "SELANGOR", "KUALA LUMPUR", "JOHOR", "PENANG", "PERAK", "MELAKA", "NEGERI SEMBILAN", "PAHANG", "KELANTAN", "TERENGGANU", "KEDAH", "PERLIS", "SABAH", "SARAWAK"]
-    )
-    match_type = st.radio("Select Search Match Type:", ["Exact Match for name and ic", "Similar (Partial Match for phone search exclude 60)"], horizontal=True)
-    search_query = st.text_input("Enter Name, IC, or Phone to search:")
+    if not st.session_state["authenticated"]:
+        st.warning("🔒 You must log in to access secure database search records.")
+        with st.form("login_form"):
+            username_input = st.text_input("Username:").strip().lower()
+            password_input = st.text_input("Password:", type="password")
+            submit_button = st.form_submit_button("Login")
 
-    if search_query:
-        if user_usage >= max_quota and not st.session_state["is_admin"]:
-            st.error(f"⛔ Monthly limit of {max_quota} searches reached.")
-            st.stop()
-
-        st.session_state["usage"][current_user] = user_usage + 1
-        st.session_state["user_logs"].append({"Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "User": current_user, "Query": search_query, "Match Type": match_type})
-
-        safe_query = search_query.replace("'", "\\'")
-        if match_type == "Exact Match for name and ic":
-            sql_query = f"SELECT * FROM `mysej-510709.mysej.combined_data` WHERE (LOWER(Nama) = '{safe_query.lower()}' OR CAST(nokp AS STRING) = '{safe_query}' OR LOWER(tel1) = '{safe_query.lower()}')"
-        else:
-            sql_query = f"SELECT * FROM `mysej-510709.mysej.combined_data` WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%' OR CAST(nokp AS STRING) LIKE '%{safe_query.lower()}%' OR LOWER(tel1) LIKE '%{safe_query.lower()}%')"
-        
-        if selected_negeri == "KLANG VALLEY (KUALA LUMPUR & SELANGOR)":
-            sql_query += " AND UPPER(negeri) IN ('KUALA LUMPUR', 'SELANGOR')"
-        elif selected_negeri != "ALL":
-            sql_query += f" AND UPPER(negeri) = '{selected_negeri}'"
-        sql_query += " LIMIT 100"
-
-        try:
-            with st.spinner("Querying BigQuery..."):
-                query_job = client.query(sql_query)
-                raw_rows, columns = [], []
-                for row in query_job:
-                    if not columns:
-                        columns = list(row.keys())
-                    row_dict = {}
-                    for k, v in row.items():
-                        if k in ['nokp', 'IC', 'ICLama', 'tel1'] and v is not None:
-                            str_val = str(v).split('.')[0]
-                            row_dict[k] = str_val
-                        else:
-                            row_dict[k] = "" if v is None else v
-                    raw_rows.append(row_dict)
-
-                df = pd.DataFrame(raw_rows)
-                if not df.empty:
-                    st.success(f"Found {len(df)} records.")
-                    st.dataframe(df, use_container_width=True)
+            if submit_button:
+                users_db = st.session_state["users"]
+                if username_input in users_db and users_db[username_input] == password_input:
+                    st.session_state["authenticated"] = True
+                    st.session_state["logged_user"] = username_input
+                    if username_input not in st.session_state["usage"]:
+                        st.session_state["usage"][username_input] = 0
+                    st.success(f"Welcome back, {username_input}!")
+                    st.rerun()
                 else:
-                    st.info("No records found.")
-        except Exception as e:
-            st.error(f"Query Error: {e}")
+                    st.error("Invalid Username or Password. Please try again.")
+    else:
+        current_user = st.session_state["logged_user"]
+        max_quota = st.session_state["quotas"].get(current_user, 500)
+        user_usage = st.session_state["usage"].get(current_user, 0)
+
+        # Sidebar user controls & Admin toggle
+        st.sidebar.write(f"👤 Logged in as: **{current_user}**")
+        st.sidebar.write(f"📊 Usage: **{user_usage} / {max_quota} searches**")
+
+        if st.sidebar.button("Logout"):
+            st.session_state["authenticated"] = False
+            st.session_state["logged_user"] = None
+            st.rerun()
+
+        st.sidebar.title("Admin Controls")
+        st.session_state["is_admin"] = st.sidebar.checkbox(
+            "Enable Admin Mode", 
+            value=st.session_state["is_admin"], 
+            key="admin_mode_checkbox"
+        )
+
+        if st.session_state["is_admin"]:
+            with st.expander("📊 Admin Dashboard & Management", expanded=True):
+                admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs(["Usage & Logs", "Manage Users", "Manage Birthdays", "Office Notice"])
+                with admin_tab1:
+                    if st.session_state["usage"]:
+                        st.dataframe([{"User": u, "Searches Used": c, "Quota": st.session_state["quotas"].get(u, 500)} for u, c in st.session_state["usage"].items()], use_container_width=True)
+                    if st.session_state["user_logs"]:
+                        st.dataframe(st.session_state["user_logs"][-10:], use_container_width=True)
+                with admin_tab2:
+                    with st.form("add_user_form"):
+                        nu = st.text_input("New Username:").strip().lower()
+                        npw = st.text_input("New Password:", type="password")
+                        n_quota = st.number_input("Monthly Quota Limit:", value=500)
+                        if st.form_submit_button("Create User") and nu and npw:
+                            st.session_state["users"][nu] = npw
+                            st.session_state["quotas"][nu] = n_quota
+                            st.success(f"User {nu} created!")
+                            st.rerun()
+                with admin_tab3:
+                    with st.form("add_bday"):
+                        bname = st.text_input("Name:")
+                        bdob = st.date_input("DOB:")
+                        if st.form_submit_button("Add") and bname:
+                            st.session_state["team_birthdays"].append({"name": bname, "dob": bdob.strftime("%Y-%m-%d")})
+                            st.rerun()
+                with admin_tab4:
+                    with st.form("notice_f"):
+                        not_in = st.text_area("Office Notice:", value=st.session_state["office_notice"])
+                        if st.form_submit_button("Update Notice"):
+                            st.session_state["office_notice"] = not_in
+                            st.rerun()
+
+        selected_negeri = st.selectbox(
+            "Select or filter by Negeri (State):", 
+            ["ALL", "KLANG VALLEY (KUALA LUMPUR & SELANGOR)", "SELANGOR", "KUALA LUMPUR", "JOHOR", "PENANG", "PERAK", "MELAKA", "NEGERI SEMBILAN", "PAHANG", "KELANTAN", "TERENGGANU", "KEDAH", "PERLIS", "SABAH", "SARAWAK"],
+            index=0
+        )
+        
+        match_type = st.radio(
+            "Select Search Match Type:", 
+            ["Exact Match for name and ic", "Similar (Partial Match for phone search exclude 60 and road name)"], 
+            horizontal=True
+        )
+        
+        search_query = st.text_input("Enter Name, IC, Address (Jalan name) or Phone to search:")
+
+        if search_query:
+            if user_usage >= max_quota and not st.session_state["is_admin"]:
+                st.error(f"⛔ Monthly limit of {max_quota} searches reached.")
+                st.stop()
+
+            st.session_state["usage"][current_user] = user_usage + 1
+            st.session_state["user_logs"].append({
+                "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                "User": current_user, 
+                "Query": search_query, 
+                "Match Type": match_type
+            })
+
+            safe_query = search_query.replace("'", "\\'")
+            clean_phone_query = safe_query.lstrip('+').replace('60', '', 1) if safe_query.startswith(('60', '+60')) else safe_query
+
+            if match_type == "Exact Match for name and ic":
+                sql_query = f"""
+                    SELECT * FROM `mysej-510709.mysej.combined_data` 
+                    WHERE (LOWER(Nama) = '{safe_query.lower()}' 
+                       OR CAST(IC AS STRING) = '{safe_query}' 
+                       OR LOWER(tel1) = '{safe_query.lower()}')
+                """
+            else:
+                sql_query = f"""
+                    SELECT * FROM `mysej-510709.mysej.combined_data` 
+                    WHERE (LOWER(Nama) LIKE '%{safe_query.lower()}%' 
+                       OR CAST(IC AS STRING) LIKE '%{safe_query.lower()}%' 
+                       OR LOWER(NamaLokaliti) LIKE '%{safe_query.lower()}%' 
+                       OR LOWER(Alamat2) LIKE '%{safe_query.lower()}%' 
+                       OR LOWER(tel1) LIKE '%{clean_phone_query.lower()}%')
+                """
+            
+            if selected_negeri == "KLANG VALLEY (KUALA LUMPUR & SELANGOR)":
+                sql_query += " AND UPPER(negeri) IN ('KUALA LUMPUR', 'SELANGOR')"
+            elif selected_negeri != "ALL":
+                sql_query += f" AND UPPER(negeri) = '{selected_negeri}'"
+            
+            sql_query += " LIMIT 100"
+
+            if client:
+                try:
+                    with st.spinner("Querying BigQuery dataset..."):
+                        query_job = client.query(sql_query)
+                        raw_rows, columns = [], []
+                        for row in query_job:
+                            if not columns:
+                                columns = list(row.keys())
+                            row_dict = {}
+                            for k, v in row.items():
+                                if k in ['nokp', 'IC', 'ICLama', 'tel1'] and v is not None:
+                                    str_val = str(v).split('.')[0]
+                                    row_dict[k] = str_val
+                                else:
+                                    row_dict[k] = "" if v is None else v
+                            raw_rows.append(row_dict)
+
+                        df = pd.DataFrame(raw_rows)
+                        if not df.empty:
+                            hidden_columns = [
+                                'nokp', 'Jastina', 'Kodlokaliti', 'NamaParlimen', 
+                                'NamaDM', 'NameDUN', 'KategoriPemilih', 
+                                'name_tel', 'Unnamed__0'
+                            ]
+                            available_cols = [col for col in df.columns if col not in hidden_columns]
+                            
+                            front_cols = []
+                            for col_name in ['IC', 'Nama', 'tel1', 'NamaLokaliti', 'Alamat2']:
+                                if col_name in available_cols:
+                                    front_cols.append(col_name)
+                                    
+                            display_cols = front_cols + [col for col in available_cols if col not in front_cols]
+                            filtered_df = df[display_cols]
+
+                            if 'IC' in filtered_df.columns:
+                                filtered_df = filtered_df.sort_values(by='IC', ascending=True)
+
+                            st.success(f"Found {len(filtered_df)} matching records.")
+                            st.dataframe(filtered_df, use_container_width=True)
+                        else:
+                            st.info("No matching records found in the database.")
+                except Exception as e:
+                    st.error(f"Query Error: {e}")
+            else:
+                st.error("BigQuery client is offline. Verify your GCP credentials.")
 
 
 # =============================================================================
@@ -302,18 +326,22 @@ with tab_news:
                 continue
         return []
 
-    for entry in fetch_property_news()[:6]:
-        col_img, col_text = st.columns([1, 2.5])
-        image_url = entry.media_content[0].get('url') if 'media_content' in entry and entry.media_content else None
-        with col_img:
-            if image_url:
-                st.image(image_url, use_column_width=True)
-            else:
-                st.info("🖼️ Property News")
-        with col_text:
-            st.markdown(f"### [{entry.title}]({entry.link})")
-            st.caption(f"🗓️ Published: {entry.get('published', 'Recent')[:16]}")
-        st.markdown("---")
+    entries = fetch_property_news()
+    if entries:
+        for entry in entries[:6]:
+            col_img, col_text = st.columns([1, 2.5])
+            image_url = entry.media_content[0].get('url') if 'media_content' in entry and entry.media_content else None
+            with col_img:
+                if image_url:
+                    st.image(image_url, use_column_width=True)
+                else:
+                    st.info("🖼️ Property News")
+            with col_text:
+                st.markdown(f"### [{entry.title}]({entry.link})")
+                st.caption(f"🗓️ Published: {entry.get('published', 'Recent')[:16]}")
+            st.markdown("---")
+    else:
+        st.info("Live news feeds are currently updating. Please check back shortly.")
 
 
 # =============================================================================
@@ -341,8 +369,11 @@ with tab_mortgage:
         default_rate = float(bank_rates_data[selected_bank][prop_cat])
 
         prop_price = st.number_input("Property Purchase Price (RM)", min_value=50000, value=600000, step=50000)
+        is_first_home = st.checkbox("First-Time Homebuyer (100% MOT & Loan Stamp Duty Exemption up to RM500k)", value=False)
         margin_finance = st.slider("Margin of Finance (%)", min_value=10, max_value=90, value=90, step=5)
+        
         loan_amt = prop_price * (margin_finance / 100)
+        downpayment = prop_price - loan_amt
         interest_rate = st.number_input("Interest Rate (% p.a.)", min_value=1.0, value=default_rate, step=0.05)
         loan_tenure = st.slider("Loan Tenure (Years)", min_value=5, max_value=35, value=30, step=1)
 
@@ -357,16 +388,37 @@ with tab_mortgage:
 
     spa_legal = calc_legal_fee(prop_price)
     loan_legal = calc_legal_fee(loan_amt)
-    mot_sd = calc_mot_stamp_duty(prop_price)
-    loan_sd = loan_amt * 0.005
-    total_fees = spa_legal + loan_legal + mot_sd + loan_sd + ((spa_legal + loan_legal) * 0.08 + 2000)
+    
+    # Exemption logic for first-time buyers under RM500k
+    if is_first_home and prop_price <= 500000:
+        mot_sd = 0.0
+        loan_sd = 0.0
+    else:
+        mot_sd = calc_mot_stamp_duty(prop_price)
+        loan_sd = loan_amt * 0.005
+
+    sst_disb = (spa_legal + loan_legal) * 0.08 + 2000
+    total_legal_and_stamp = spa_legal + loan_legal + mot_sd + loan_sd + sst_disb
+    total_upfront_cash = downpayment + total_legal_and_stamp
     
     monthly_i = (interest_rate / 100) / 12
     m_pay = loan_amt * (monthly_i * (1 + monthly_i)**(loan_tenure * 12)) / ((1 + monthly_i)**(loan_tenure * 12) - 1) if monthly_i > 0 else loan_amt / (loan_tenure * 12)
 
     with col2:
         st.metric("Estimated Monthly Installment", f"RM {m_pay:,.2f}")
-        st.metric("Total Upfront Cash Needed", f"RM {(prop_price - loan_amt + total_fees):,.2f}")
+        st.metric("Total Upfront Cash Needed", f"RM {total_upfront_cash:,.2f}")
+        
+        st.markdown("### 📋 Upfront Payment Breakdown")
+        cost_table = [
+            {"Cost Item": "Downpayment", "Amount (RM)": f"RM {downpayment:,.2f}"},
+            {"Cost Item": "SPA Legal Fee (SRO Scale)", "Amount (RM)": f"RM {spa_legal:,.2f}"},
+            {"Cost Item": "Loan Agreement Legal Fee", "Amount (RM)": f"RM {loan_legal:,.2f}"},
+            {"Cost Item": "MOT Stamp Duty (Transfer)", "Amount (RM)": f"RM {mot_sd:,.2f}"},
+            {"Cost Item": "Loan Agreement Stamp Duty (0.5%)", "Amount (RM)": f"RM {loan_sd:,.2f}"},
+            {"Cost Item": "SST (8%) & Disbursements", "Amount (RM)": f"RM {sst_disb:,.2f}"},
+            {"Cost Item": "Total Upfront Cash Required", "Amount (RM)": f"RM {total_upfront_cash:,.2f}"}
+        ]
+        st.table(cost_table)
 
 
 # =============================================================================
@@ -386,11 +438,11 @@ with tab_tenancy:
 # TAB 4: MALAYSIA BUDGET HIGHLIGHTS
 # =============================================================================
 with tab_budget:
-    st.header("📊 Malaysia Budget Real Estate Highlights")
-    st.markdown("""
-    * **First-Time Homebuyers:** 100% Stamp Duty Exemption on MOT & Loan Agreements for homes up to RM500,000.
-    * **SJKP Housing Scheme:** Government guarantees expanded to RM10 Billion for gig-workers and freelancers.
-    * **Commercial Conversion:** Special 10% tax deduction on qualifying expenses for commercial-to-residential conversions.
+    st.header(f"📊 Malaysia Budget {current_year} Real Estate & Housing Policy Summary")
+    st.markdown(f"""
+    * **First-Time Homebuyers ({current_year}):** 100% Stamp Duty Exemption on MOT & Loan Agreements for residential homes priced up to RM500,000.
+    * **SJKP Housing Credit Guarantee:** Expanded government financing up to RM10 Billion supporting gig-workers and self-employed buyers.
+    * **Commercial Conversion:** Special 10% tax deduction on qualifying expenses for commercial-to-residential adaptive reuse projects.
     """)
 
 
