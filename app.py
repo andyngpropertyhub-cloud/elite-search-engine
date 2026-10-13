@@ -127,7 +127,7 @@ tab_search, tab_news, tab_mortgage, tab_tenancy, tab_budget, tab_contacts = st.t
 ])
 
 # =============================================================================
-# TAB 0: ELITE SEARCH ENGINE (BIGQUERY INTERFACE WITH FULL WIDTH & HIDDEN AGE)
+# TAB 0: ELITE SEARCH ENGINE (BIGQUERY INTERFACE WITH SPECIFIC HIDDEN COLUMNS)
 # =============================================================================
 with tab_search:
     st.header("🔍 Commercial & Dataset Search Interface")
@@ -275,7 +275,7 @@ with tab_search:
 
                         df = pd.DataFrame(raw_rows)
                         if not df.empty:
-                            # Derive age internally from column IC
+                            # Derive age internally from column IC (retained in df framework logic)
                             def derive_age_from_ic(ic_str):
                                 if not ic_str or len(ic_str) < 6:
                                     return None
@@ -296,16 +296,16 @@ with tab_search:
                             if 'IC' in df.columns:
                                 df['Age'] = df['IC'].apply(derive_age_from_ic)
 
-                            # Hide 'Age', 'nokp', and other backend columns from frontend view
+                            # Explicitly hide Age, Jastina, NameDun / NamaDun, Bangsa, nama_tel, and nokp
                             hidden_columns = [
-                                'Age', 'nokp', 'Jastina', 'Kodlokaliti', 'NamaParlimen', 
-                                'NamaDM', 'NameDUN', 'KategoriPemilih', 
-                                'name_tel', 'Unnamed__0'
+                                'age','nokp', 'Jastina', 'NameDUN', 'NamaDun', 'namaDun', 
+                                'Bangsa', 'bangsa', 'nama_tel', 'Kodlokaliti', 'NamaParlimen', 
+                                'NamaDM', 'KategoriPemilih', 'Unnamed__0'
                             ]
                             available_cols = [col for col in df.columns if col not in hidden_columns]
                             
                             front_cols = []
-                            for col_name in ['IC', 'Nama', 'tel1', 'NamaLokaliti', 'Alamat2']:
+                            for col_name in ['IC', 'Nama', 'tel1', 'age', 'NamaLokaliti', 'Alamat2']:
                                 if col_name in available_cols:
                                     front_cols.append(col_name)
                                     
@@ -317,14 +317,13 @@ with tab_search:
 
                             st.success(f"Found {len(filtered_df)} matching records.")
                             
-                            # Config columns to expand width and display full content without cutoff
+                            # IC and tel1 set to large/full width; all other columns remain normal
                             st.dataframe(
                                 filtered_df, 
                                 use_container_width=True,
                                 column_config={
-                                    "tel1": st.column_config.TextColumn("tel1", width="medium"),
-                                    "Nama": st.column_config.TextColumn("Nama", width="large"),
-                                    "Alamat2": st.column_config.TextColumn("Alamat2", width="large")
+                                    "IC": st.column_config.TextColumn("IC", width="large"),
+                                    "tel1": st.column_config.TextColumn("tel1", width="large")
                                 }
                             )
                         else:
