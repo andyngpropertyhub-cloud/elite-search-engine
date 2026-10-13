@@ -17,6 +17,35 @@ st.set_page_config(
     layout="wide"
 )
 
+
+import streamlit.components.v1 as components
+
+# Inject Open Graph Meta Tags for WhatsApp & Social Media Previews
+og_tags = """
+    <head>
+      <!-- Primary Meta Tags -->
+      <title>Elite Search Engine</title>
+      <meta name="title" content="Elite Search Engine">
+      <meta name="description" content="Fast, reliable search tool for structured datasets with full data accuracy.">
+
+      <!-- Open Graph / Facebook / WhatsApp -->
+      <meta property="og:type" content="website">
+      <meta property="og:url" content="https://elitesearch.streamlit.app/">
+      <meta property="og:title" content="Elite Search Engine">
+      <meta property="og:description" content="Fast, reliable search tool for structured datasets with full data accuracy.">
+      <meta property="og:image" content="https://raw.githubusercontent.com/your-username/your-repo/main/preview-image.png">
+
+      <!-- Twitter -->
+      <meta property="twitter:card" content="summary_large_image">
+      <meta property="twitter:url" content="https://elitesearch.streamlit.app/">
+      <meta property="twitter:title" content="Elite Search Engine">
+      <meta property="twitter:description" content="Fast, reliable search tool for structured datasets with full data accuracy.">
+      <meta property="twitter:image" content="https://raw.githubusercontent.com/your-username/your-repo/main/preview-image.png">
+    </head>
+"""
+
+# Render hidden meta tags inside the Streamlit HTML wrapper
+components.html(og_tags, height=0, width=0)
 # ---------------------------------------------------------
 # 2. Initialize Session State (User Credentials & State)
 # ---------------------------------------------------------
