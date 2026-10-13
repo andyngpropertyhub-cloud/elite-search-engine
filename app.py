@@ -40,18 +40,40 @@ components.html(og_meta_tags, height=0, width=0)
 
 import feedparser
 
-with st.expander("📰 Latest Malaysia Property News"):
-    st.caption("Live updates from Malaysian real estate portals")
+with st.expander("📰 Latest Malaysia Property News & Insights"):
+    st.caption("Live market updates, commercial trends, and news.")
     
-    # Example RSS feed from a major property portal (e.g., EdgeProp Malaysia)
-    rss_url = "https://www.edgeprop.my/rss.xml" # Or standard property news feed
+    # Example property news feed URL (using a standard parseable property feed)
+    rss_url = "https://www.edgeprop.my/rss.xml" 
     
     try:
         feed = feedparser.parse(rss_url)
         if feed.entries:
-            for entry in feed.entries[:5]: # Show top 5 latest news items
-                st.markdown(f"**[{entry.title}]({entry.link})**")
-                st.text(f"Published: {entry.published[:16]}")
+            # Loop through the top 5 articles
+            for entry in feed.entries[:5]:
+                col1, col2 = st.columns([1, 2])
+                
+                # Extract image if available in feed entries (media_content or enclosures)
+                image_url = None
+                if 'media_content' in entry and len(entry.media_content) > 0:
+                    image_url = entry.media_content[0].get('url')
+                elif 'links' in entry:
+                    for link in entry.links:
+                        if 'image' in link.get('type', ''):
+                            image_url = link.get('href')
+                            break
+
+                with col1:
+                    if image_url:
+                        st.image(image_url, use_column_width=True)
+                    else:
+                        st.markdown("🏢 *No preview image*")
+                
+                with col2:
+                    pub_date = entry.get('published', '')[:16]
+                    st.markdown(f"**[{entry.title}]({entry.link})**")
+                    st.caption(f"Published: {pub_date}")
+                
                 st.markdown("---")
         else:
             st.info("No news feeds available at the moment.")
