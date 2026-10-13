@@ -35,6 +35,28 @@ og_meta_tags = """
 
 # Render hidden tags without space
 components.html(og_meta_tags, height=0, width=0)
+
+# pull live property news
+
+import feedparser
+
+with st.expander("📰 Latest Malaysia Property News"):
+    st.caption("Live updates from Malaysian real estate portals")
+    
+    # Example RSS feed from a major property portal (e.g., EdgeProp Malaysia)
+    rss_url = "https://www.edgeprop.my/rss.xml" # Or standard property news feed
+    
+    try:
+        feed = feedparser.parse(rss_url)
+        if feed.entries:
+            for entry in feed.entries[:5]: # Show top 5 latest news items
+                st.markdown(f"**[{entry.title}]({entry.link})**")
+                st.text(f"Published: {entry.published[:16]}")
+                st.markdown("---")
+        else:
+            st.info("No news feeds available at the moment.")
+    except Exception as e:
+        st.warning("Could not fetch live property news feeds.")
 # ---------------------------------------------------------
 # 2. Initialize Session State (User Credentials & State)
 # ---------------------------------------------------------
