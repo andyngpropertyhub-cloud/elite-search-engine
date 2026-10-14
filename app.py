@@ -578,32 +578,36 @@ with tab_mortgage:
             ]
             st.table(cost_table)
             
-            # Export & WhatsApp Sharing including ALL loan info
+            # Export & WhatsApp Sharing including ALL loan info & complete upfront breakdown
             st.markdown("### 📤 Share Mortgage Breakdown")
             
-            full_share_msg = f"""*Elite Property Financing Assessment*
-----------------------------------------
-• Property Price: RM {prop_price:,.2f}
-• Bank Profile: {selected_bank}
-• Financing Scheme: {financing_scheme}
-• Interest Rate: {interest_rate:.2f}% p.a.
-• Margin of Finance: {margin_finance:.1f}%
-• Loan Tenure: {loan_tenure} Years
-• Loan Amount: RM {loan_amt:,.2f}
-----------------------------------------
-*ESTIMATED MONTHLY INSTALLMENT:* RM {m_pay:,.2f}
-*TOTAL UPFRONT CASH NEEDED:* RM {total_upfront_cash:,.2f}
-
-*UPFRONT COST BREAKDOWN:*
-- Downpayment: RM {downpayment:,.2f}
-- SPA Legal Fee: RM {spa_legal:,.2f}
-- Loan Legal Fee: RM {loan_legal:,.2f}
-- MOT Stamp Duty: RM {mot_sd:,.2f}
-- Loan Stamp Duty: RM {loan_sd:,.2f}
-- SST & Disbursements: RM {sst_disb:,.2f}
-"""
-            wa_mortgage_url = f"https://wa.me/?text={full_share_msg.replace(' ', '%20').replace('\n', '%0A')}"
-            st.markdown(f'<a href="{wa_mortgage_url}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Share Complete Assessment on WhatsApp</button></a>', unsafe_allow_html=True)
+            full_share_msg = (
+                f"*Elite Property Financing Assessment*\n"
+                f"----------------------------------------\n"
+                f"• Property Price: RM {prop_price:,.2f}\n"
+                f"• Bank Profile: {selected_bank}\n"
+                f"• Financing Scheme: {financing_scheme}\n"
+                f"• Interest Rate: {interest_rate:.2f}% p.a.\n"
+                f"• Margin of Finance: {margin_finance:.1f}%\n"
+                f"• Loan Tenure: {loan_tenure} Years\n"
+                f"• Loan Amount: RM {loan_amt:,.2f}\n"
+                f"----------------------------------------\n"
+                f"*ESTIMATED MONTHLY INSTALLMENT:* RM {m_pay:,.2f}\n"
+                f"*TOTAL UPFRONT CASH NEEDED:* RM {total_upfront_cash:,.2f}\n\n"
+                f"*UPFRONT COST BREAKDOWN:*\n"
+                f"- Downpayment: RM {downpayment:,.2f}\n"
+                f"- SPA Legal Fee: RM {spa_legal:,.2f}\n"
+                f"- Loan Legal Fee: RM {loan_legal:,.2f}\n"
+                f"- MOT Stamp Duty: RM {mot_sd:,.2f}\n"
+                f"- Loan Stamp Duty: RM {loan_sd:,.2f}\n"
+                f"- SST (8%) & Disbursements: RM {sst_disb:,.2f}\n"
+                f"----------------------------------------\n"
+                f"*GRAND TOTAL REQUIRED:* RM {total_upfront_cash:,.2f}"
+            )
+            
+            # URL Encode string safely for WhatsApp Web / Mobile API
+            encoded_msg = base64.b64encode(full_share_msg.encode('utf-8')).decode('utf-8')
+            wa_mortgage_url = f"https://api.whatsapp.com/send?text={import_urllib_parse(full_share_msg)}"
 
     with calc_sub_tab2:
         st.subheader("🏷️ Real Property Gains Tax (RPGT) Calculator")
@@ -750,7 +754,12 @@ with tab_fees:
             q_price = st.number_input("Property Sale Price (RM)", min_value=100000, value=600000, step=50000)
             q_loan = st.number_input("Loan Financing Amount (RM)", min_value=0, value=540000, step=50000)
             
-            # SRO 2023 Legal Scale Fee
+            # Interactive Property Parameters
+            prop_tenure = st.selectbox("Property Tenure", ["Freehold", "Leasehold"])
+            prop_encumbrance = st.selectbox("Encumbrance Status", ["Charged (With Bank Encumbrance / Redemption needed)", "Free from Encumbrances"])
+            prop_title_type = st.selectbox("Property Title Type", ["Individual Title", "Strata Title", "Master Title (Under Developer)"])
+            
+            # SRO 2023 Legal Scale Fee Calculation
             def calc_sro_2023(price):
                 if price <= 500000:
                     return max(500, price * 0.0125)
@@ -771,27 +780,80 @@ with tab_fees:
             mot_sd_q = calc_mot_q(q_price)
             loan_sd_q = q_loan * 0.005
             
+            # Additional Charges based on Title & Tenure Selection
+            leasehold_consent_fee = 500.0 if prop_tenure == "Leasehold" else 0.0
+            discharge_charge_fee = 400.0 if "Charged" in prop_encumbrance else 0.0
+            master_title_fee = 350.0 if prop_title_type == "Master Title (Under Developer)" else 0.0
+            
+            # Standard Disbursements & RPGT Retention Calculation
             land_search = 150.0
             bankruptcy_search = 100.0
-            disbursements = 1500.0
-            sst_8_percent = (spa_legal_q + loan_legal_q) * 0.08
+            adjudication_ckht = 200.0  # LHDN Adjudication & CKHT Filing
+            statutory_decl = 100.0
+            misc_disbursements = 1200.0  # Printing, Courier & Travelling
             
-            grand_total_legal = spa_legal_q + loan_legal_q + mot_sd_q + loan_sd_q + land_search + bankruptcy_search + disbursements + sst_8_percent
+            sst_8_percent = (spa_legal_q + loan_legal_q + leasehold_consent_fee + discharge_charge_fee) * 0.08
+            rpgt_retention_3pct = q_price * 0.03  # Statutory 3% RPGT Retention withheld by buyer's solicitor
+            
+            grand_total_legal = (
+                spa_legal_q + loan_legal_q + mot_sd_q + loan_sd_q + 
+                leasehold_consent_fee + discharge_charge_fee + master_title_fee +
+                land_search + bankruptcy_search + adjudication_ckht + 
+                statutory_decl + misc_disbursements + sst_8_percent
+            )
 
         with q_col2:
             st.markdown("### Itemized Quotation Breakdown")
             q_data = [
                 {"Item Description": "SPA Scale Legal Fee (SRO 2023)", "Amount (RM)": f"RM {spa_legal_q:,.2f}"},
-                {"Item Description": "Loan Agreement Legal Fee", "Amount (RM)": f"RM {loan_legal_q:,.2f}"},
-                {"Item Description": "MOT Stamp Duty (Transfer)", "Amount (RM)": f"RM {mot_sd_q:,.2f}"},
+                {"Item Description": "Loan Agreement Legal Fee (SRO 2023)", "Amount (RM)": f"RM {loan_legal_q:,.2f}"},
+                {"Item Description": "MOT / Transfer Stamp Duty", "Amount (RM)": f"RM {mot_sd_q:,.2f}"},
                 {"Item Description": "Loan Agreement Stamp Duty", "Amount (RM)": f"RM {loan_sd_q:,.2f}"},
-                {"Item Description": "Land Search & Title Registration", "Amount (RM)": f"RM {land_search:,.2f}"},
-                {"Item Description": "Bankruptcy / Insolvency Searches", "Amount (RM)": f"RM {bankruptcy_search:,.2f}"},
-                {"Item Description": "Miscellaneous Disbursements", "Amount (RM)": f"RM {disbursements:,.2f}"},
-                {"Item Description": "SST (8% on Professional Legal Fees)", "Amount (RM)": f"RM {sst_8_percent:,.2f}"},
-                {"Item Description": "GRAND TOTAL ESTIMATED QUOTATION", "Amount (RM)": f"RM {grand_total_legal:,.2f}"}
+                {"Item Description": "Leasehold Consent Legal Charges", "Amount (RM)": f"RM {leasehold_consent_fee:,.2f}"},
+                {"Item Description": "Discharge / Redemption Legal Work", "Amount (RM)": f"RM {discharge_charge_fee:,.2f}"},
+                {"Item Description": "Developer Consent / Master Title Fee", "Amount (RM)": f"RM {master_title_fee:,.2f}"},
+                {"Item Description": "Land & Title Search Fees", "Amount (RM)": f"RM {land_search:,.2f}"},
+                {"Item Description": "Insolvency / Bankruptcy Searches", "Amount (RM)": f"RM {bankruptcy_search:,.2f}"},
+                {"Item Description": "CKHT & Adjudication Stamping Fees", "Amount (RM)": f"RM {adjudication_ckht:,.2f}"},
+                {"Item Description": "Statutory Declarations & Affirmations", "Amount (RM)": f"RM {statutory_decl:,.2f}"},
+                {"Item Description": "Miscellaneous Printing, Courier & Travelling", "Amount (RM)": f"RM {misc_disbursements:,.2f}"},
+                {"Item Description": "SST (8% Service Tax on Legal Fees)", "Amount (RM)": f"RM {sst_8_percent:,.2f}"},
+                {"Item Description": "ESTIMATED TOTAL LEGAL COST", "Amount (RM)": f"RM {grand_total_legal:,.2f}"}
             ]
             st.table(q_data)
+            
+            st.info(f"💡 **Statutory 3% RPGT Retention Sum (Withheld by Buyer's Solicitor):** RM {rpgt_retention_3pct:,.2f}")
+            
+            st.caption("📌 *Remark: This quotation is an estimated guideline based on standard SRO 2023 scale rates. Actual legal fees and disbursements may vary across different legal firms.*")
+            
+            # WhatsApp Sharing Code
+            import urllib.parse
+            
+            quote_wa_msg = f"""*ESTIMATED LEGAL & CONVEYANCING QUOTATION*
+----------------------------------------
+• Property Price: RM {q_price:,.2f}
+• Loan Amount: RM {q_loan:,.2f}
+• Tenure: {prop_tenure}
+• Encumbrance: {prop_encumbrance}
+• Title Type: {prop_title_type}
+----------------------------------------
+*LEGAL & STAMP DUTY BREAKDOWN:*
+- SPA Legal Fee: RM {spa_legal_q:,.2f}
+- Loan Legal Fee: RM {loan_legal_q:,.2f}
+- MOT Stamp Duty: RM {mot_sd_q:,.2f}
+- Loan Stamp Duty: RM {loan_sd_q:,.2f}
+- Consent & Discharge Fees: RM {leasehold_consent_fee + discharge_charge_fee + master_title_fee:,.2f}
+- Searches & CKHT Stamping: RM {land_search + bankruptcy_search + adjudication_ckht:,.2f}
+- SST (8%): RM {sst_8_percent:,.2f}
+----------------------------------------
+*ESTIMATED TOTAL LEGAL FEES:* RM {grand_total_legal:,.2f}
+*3% RPGT RETENTION WITHHELD:* RM {rpgt_retention_3pct:,.2f}
+
+_Remark: This is an estimated cost and may vary depending on the selected law firm._"""
+
+            encoded_quote_msg = urllib.parse.quote(quote_wa_msg)
+            wa_quote_url = f"https://wa.me/?text={encoded_quote_msg}"
+            st.markdown(f'<a href="{wa_quote_url}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Share Legal Quotation on WhatsApp</button></a>', unsafe_allow_html=True)
 
     with f_sub2:
         st.subheader("Official BOVAEP Fee Scale (LPEPH Seventh Schedule)")
