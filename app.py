@@ -217,12 +217,16 @@ with tab_search:
             st.session_state["logged_user"] = None
             st.rerun()
 
-        st.sidebar.title("Admin Controls")
-        st.session_state["is_admin"] = st.sidebar.checkbox(
-            "Enable Admin Mode", 
-            value=st.session_state["is_admin"], 
-            key="admin_mode_checkbox"
-        )
+# Only show admin controls if the logged-in user is 'admin'
+        if current_user == "admin":
+            st.sidebar.title("Admin Controls")
+            st.session_state["is_admin"] = st.sidebar.checkbox(
+                "Enable Admin Mode", 
+                value=st.session_state["is_admin"], 
+                key="admin_mode_checkbox"
+            )
+        else:
+            st.session_state["is_admin"] = False
 
         if st.session_state["is_admin"]:
             with st.expander("📊 Admin Dashboard & Management", expanded=True):
@@ -303,9 +307,24 @@ with tab_search:
                             
                     st.markdown("---")
                     if st.session_state["team_birthdays"]:
-                        bday_names = [b["name"] for b in st.session_state["team_birthdays"]]
-                        selected_bday_to_edit = st.selectbox("Select Team Member to Edit/Remove:", bday_names)
-                        current_bday_record = next((b for b in st.session_state["team_birthdays"] if b["name"] == selected_bday_to_edit), None)
+                        # Sort birthdays by upcoming date relative to today
+                        today = datetime.date.today()
+                        def get_next_birthday_delta(b):
+                            parts = b["dob"].split("-")
+                            b_month, b_day = int(parts[1]), int(parts[2])
+                            try:
+                                next_bday = datetime.date(today.year, b_month, b_day)
+                            except ValueError:  # Handle leap day feb 29
+                                next_bday = datetime.date(today.year, 3, 1)
+                            if next_bday < today:
+                                next_bday = datetime.date(today.year + 1, b_month, b_day)
+                            return (next_bday - today).days
+
+                        sorted_birthdays = sorted(st.session_state["team_birthdays"], key=get_next_birthday_delta)
+                        
+                        bday_names = [b["name"] for b in sorted_birthdays]
+                        selected_bday_to_edit = st.selectbox("Select Team Member to Edit/Remove (Ordered by Nearest Birthday):", bday_names)
+                        current_bday_record = next((b for b in sorted_birthdays if b["name"] == selected_bday_to_edit), None)
                         
                         if current_bday_record:
                             with st.form("edit_bday_form"):
