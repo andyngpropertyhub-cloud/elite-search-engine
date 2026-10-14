@@ -1,4 +1,6 @@
 streamlit
 google-cloud-bigquery
-db-dtypes
+google-auth
+pandas
 feedparser
+reportlab
