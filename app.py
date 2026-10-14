@@ -28,12 +28,13 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 2. Initialize Session State
+# 2. Initialize Session State & Persistent JSON Storage
 # -----------------------------------------------------------------------------
-
 USER_DB_FILE = "users_db.json"
+LOGS_FILE = "user_logs.json"
+USAGE_FILE = "user_usage.json"
 
-# Load users from file if it exists, otherwise use default dictionary
+# Persistent Users Database
 if "users" not in st.session_state:
     if os.path.exists(USER_DB_FILE):
         try:
@@ -54,7 +55,6 @@ if "users" not in st.session_state:
             "user1": "pass123",
             "user2": "pass123"
         }
-        # Save default to file
         with open(USER_DB_FILE, "w") as f:
             json.dump(st.session_state["users"], f)
 
@@ -65,38 +65,71 @@ if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "logged_user" not in st.session_state:
     st.session_state["logged_user"] = None
+
+# Persistent Usage Counters
 if "usage" not in st.session_state:
-    st.session_state["usage"] = {u: 0 for u in st.session_state["users"]}
+    if os.path.exists(USAGE_FILE):
+        try:
+            with open(USAGE_FILE, "r") as f:
+                st.session_state["usage"] = json.load(f)
+        except Exception:
+            st.session_state["usage"] = {u: 0 for u in st.session_state["users"]}
+    else:
+        st.session_state["usage"] = {u: 0 for u in st.session_state["users"]}
+        with open(USAGE_FILE, "w") as f:
+            json.dump(st.session_state["usage"], f)
+
 if "is_admin" not in st.session_state:
     st.session_state["is_admin"] = False
+
+# Persistent User Logs
 if "user_logs" not in st.session_state:
-    st.session_state["user_logs"] = []
+    if os.path.exists(LOGS_FILE):
+        try:
+            with open(LOGS_FILE, "r") as f:
+                st.session_state["user_logs"] = json.load(f)
+        except Exception:
+            st.session_state["user_logs"] = []
+    else:
+        st.session_state["user_logs"] = []
+
 if "office_notice" not in st.session_state:
     st.session_state["office_notice"] = ""
 
+BIRTHDAYS_FILE = "birthdays_db.json"
+
 if "team_birthdays" not in st.session_state:
-    st.session_state["team_birthdays"] = [
-        {"name": "OOI SHUN HOONG (Derrick)", "dob": "1991-01-16"},
-        {"name": "HOW KEAT HANG (Eric)", "dob": "1980-01-29"},
-        {"name": "YAP YUNG KANG (Kent)", "dob": "1988-02-23"},
-        {"name": "YAP SIEW PIN (Daniel)", "dob": "1979-03-07"},
-        {"name": "TIEW CHEE HEONG (Rex)", "dob": "1985-03-15"},
-        {"name": "NG WAI KEAT (Ted)", "dob": "1987-03-17"},
-        {"name": "Lee Keng Ho (Benny)", "dob": "1977-03-11"},
-        {"name": "RYAN CHAN PHUEI SUM", "dob": "2000-04-30"},
-        {"name": "YOW KOK SENG", "dob": "1989-05-01"},
-        {"name": "NG HON KEONG (Andy)", "dob": "1980-05-18"},
-        {"name": "YEOW GUAT BEE", "dob": "1965-06-12"},
-        {"name": "LO SHENG LOONG (Alex)", "dob": "1994-07-02"},
-        {"name": "WONG WING CHOY (Tommy)", "dob": "1981-08-14"},
-        {"name": "OOI KOK HING", "dob": "1984-08-31"},
-        {"name": "LEONG CHEE CHUNG (Dom)", "dob": "1989-09-08"},
-        {"name": "CHIN KOK LEONG (Eddie)", "dob": "1973-09-27"},
-        {"name": "TONG WAI LEUNG (Daniel)", "dob": "1988-11-03"},
-        {"name": "HOH CHENG YEE", "dob": "1974-11-10"},
-        {"name": "SIEW KET TONG (Top Siew)", "dob": "1975-11-24"},
-        {"name": "YAP YUNG MEI", "dob": "1984-12-18"}
-    ]
+    if os.path.exists(BIRTHDAYS_FILE):
+        try:
+            with open(BIRTHDAYS_FILE, "r") as f:
+                st.session_state["team_birthdays"] = json.load(f)
+        except Exception:
+            st.session_state["team_birthdays"] = []
+    else:
+        st.session_state["team_birthdays"] = [
+            {"name": "OOI SHUN HOONG (Derrick)", "dob": "1991-01-16"},
+            {"name": "HOW KEAT HANG (Eric)", "dob": "1980-01-29"},
+            {"name": "YAP YUNG KANG (Kent)", "dob": "1988-02-23"},
+            {"name": "YAP SIEW PIN (Daniel)", "dob": "1979-03-07"},
+            {"name": "TIEW CHEE HEONG (Rex)", "dob": "1985-03-15"},
+            {"name": "NG WAI KEAT (Ted)", "dob": "1987-03-17"},
+            {"name": "Lee Keng Ho (Benny)", "dob": "1977-03-11"},
+            {"name": "RYAN CHAN PHUEI SUM", "dob": "2000-04-30"},
+            {"name": "YOW KOK SENG", "dob": "1989-05-01"},
+            {"name": "NG HON KEONG (Andy)", "dob": "1980-05-18"},
+            {"name": "YEOW GUAT BEE", "dob": "1965-06-12"},
+            {"name": "LO SHENG LOONG (Alex)", "dob": "1994-07-02"},
+            {"name": "WONG WING CHOY (Tommy)", "dob": "1981-08-14"},
+            {"name": "OOI KOK HING", "dob": "1984-08-31"},
+            {"name": "LEONG CHEE CHUNG (Dom)", "dob": "1989-09-08"},
+            {"name": "CHIN KOK LEONG (Eddie)", "dob": "1973-09-27"},
+            {"name": "TONG WAI LEUNG (Daniel)", "dob": "1988-11-03"},
+            {"name": "HOH CHENG YEE", "dob": "1974-11-10"},
+            {"name": "SIEW KET TONG (Top Siew)", "dob": "1975-11-24"},
+            {"name": "YAP YUNG MEI", "dob": "1984-12-18"}
+        ]
+        with open(BIRTHDAYS_FILE, "w") as f:
+            json.dump(st.session_state["team_birthdays"], f)
 
 # -----------------------------------------------------------------------------
 # 3. BigQuery Client Authentication Setup
@@ -260,7 +293,12 @@ with tab_search:
                         bdob = st.date_input("Date of Birth:", value=datetime.date(1990, 1, 1))
                         if st.form_submit_button("Add Birthday") and bname:
                             st.session_state["team_birthdays"].append({"name": bname, "dob": bdob.strftime("%Y-%m-%d")})
-                            st.success(f"Added birthday for {bname}!")
+                            
+                            # Save permanently to JSON file
+                            with open(BIRTHDAYS_FILE, "w") as f:
+                                json.dump(st.session_state["team_birthdays"], f)
+                                
+                            st.success(f"Added and saved birthday for {bname}!")
                             st.rerun()
                             
                     st.markdown("---")
@@ -281,11 +319,19 @@ with tab_search:
                                 if update_btn:
                                     current_bday_record["name"] = edit_name
                                     current_bday_record["dob"] = edit_dob.strftime("%Y-%m-%d")
-                                    st.success("Birthday record updated successfully!")
+                                    
+                                    with open(BIRTHDAYS_FILE, "w") as f:
+                                        json.dump(st.session_state["team_birthdays"], f)
+                                        
+                                    st.success("Birthday record updated and saved!")
                                     st.rerun()
                                 if remove_btn:
                                     st.session_state["team_birthdays"] = [b for b in st.session_state["team_birthdays"] if b["name"] != selected_bday_to_edit]
-                                    st.success("Removed birthday successfully!")
+                                    
+                                    with open(BIRTHDAYS_FILE, "w") as f:
+                                        json.dump(st.session_state["team_birthdays"], f)
+                                        
+                                    st.success("Birthday removed and saved!")
                                     st.rerun()
 
                 with admin_tab4:
@@ -316,6 +362,7 @@ with tab_search:
                 st.error(f"⛔ Monthly limit of {max_quota} searches reached.")
                 st.stop()
 
+            # Record usage and search logs properly
             st.session_state["usage"][current_user] = user_usage + 1
             st.session_state["user_logs"].append({
                 "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
@@ -324,7 +371,14 @@ with tab_search:
                 "Match Type": match_type
             })
 
+            # 🟢 PASTE HERE: Save permanently to JSON files so they survive app updates
+            with open(LOGS_FILE, "w") as f:
+                json.dump(st.session_state["user_logs"], f)
+            with open(USAGE_FILE, "w") as f:
+                json.dump(st.session_state["usage"], f)
+
             safe_query = search_query.replace("'", "\\'")
+            # ... rest of your search query code ...
             clean_phone_query = safe_query.lstrip('+').replace('60', '', 1) if safe_query.startswith(('60', '+60')) else safe_query
 
             if match_type == "Exact Match for name and ic":
