@@ -12,13 +12,13 @@ import math
 import re
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
 # -----------------------------------------------------------------------------
 # 1. Page Configuration (MUST BE FIRST STREAMLIT CALL)
 # -----------------------------------------------------------------------------
-current_year = datetime.datetime.now().year # 2026, budget 2027 is out
+current_year = datetime.datetime.now().year
 
 st.set_page_config(
     page_title="Elite Search Engine | Property Market Utilities",
@@ -27,7 +27,7 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 2. Initialize Session State (Persistent Logs & Quotas)
+# 2. Initialize Session State
 # -----------------------------------------------------------------------------
 if "users" not in st.session_state:
     st.session_state["users"] = {
@@ -104,10 +104,10 @@ def get_bq_client():
 client = get_bq_client()
 
 # -----------------------------------------------------------------------------
-# 4. App Header & Public Office Notice (Visible Before Login)
+# 4. App Header & Public Office Notice
 # -----------------------------------------------------------------------------
 st.title("🏢 Elite Property Hub & Search Engine")
-st.caption("Real-time Malaysian property market intelligence, calculators, professional fees, RPGT, and legal directories.")
+st.caption("Real-time Malaysian property market intelligence, legal calculators, statutory scale rates, and RPGT tools.")
 
 if st.session_state["office_notice"].strip():
     st.markdown(
@@ -120,20 +120,20 @@ if st.session_state["office_notice"].strip():
     )
 
 # -----------------------------------------------------------------------------
-# 5. Main Navigation (Tabs Available Before and After Login)
+# 5. Main Navigation
 # -----------------------------------------------------------------------------
 tab_search, tab_news, tab_mortgage, tab_tenancy, tab_budget, tab_fees, tab_contacts = st.tabs([
     "🔍 Elite Search Engine",
     "📰 Latest Property News", 
     "🏦 Mortgage, RPGT & Upfront Fees", 
     "📜 Tenancy Stamp Duty Calculator",
-    "📊 Malaysia Budget 2027",
-    "⚖️ Professional Scale Rates",
+    "📊 Malaysia Budget Highlights",
+    "⚖️ Professional Scale Rates & Legal Quote",
     "📞 Professional Services Directory"
 ])
 
 # =============================================================================
-# TAB 0: ELITE SEARCH ENGINE (BIGQUERY INTERFACE WITH PERSISTENT LOGS)
+# TAB 0: ELITE SEARCH ENGINE
 # =============================================================================
 with tab_search:
     st.header("🔍 Commercial & Dataset Search Interface")
@@ -355,25 +355,32 @@ with tab_search:
 
                         df = pd.DataFrame(raw_rows)
                         if not df.empty:
-                            def derive_age_from_ic(ic_str):
-                                if not ic_str or len(ic_str) < 6:
-                                    return None
-                                try:
-                                    yy = int(ic_str[0:2])
-                                    mm = int(ic_str[2:4])
-                                    dd = int(ic_str[4:6])
-                                    current_yr = datetime.datetime.now().year
-                                    century = 2000 if yy <= (current_yr % 100) else 1900
-                                    birth_year = century + yy
-                                    birth_date = datetime.date(birth_year, mm, dd)
-                                    today = datetime.date.today()
-                                    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-                                    return age if 0 <= age <= 120 else None
-                                except Exception:
-                                    return None
+                            # Robust Multi-Column Fallback Age Calculation (Fixes missing Age issue)
+                            def derive_age_from_row(row):
+                                candidates = [row.get('IC'), row.get('nokp'), row.get('ICLama'), row.get('no_kp')]
+                                for ic_val in candidates:
+                                    if not ic_val:
+                                        continue
+                                    ic_str = re.sub(r'\D', '', str(ic_val))
+                                    if len(ic_str) >= 6:
+                                        try:
+                                            yy = int(ic_str[0:2])
+                                            mm = int(ic_str[2:4])
+                                            dd = int(ic_str[4:6])
+                                            if 1 <= mm <= 12 and 1 <= dd <= 31:
+                                                curr_yr = datetime.datetime.now().year
+                                                century = 2000 if yy <= (curr_yr % 100) else 1900
+                                                birth_year = century + yy
+                                                birth_date = datetime.date(birth_year, mm, dd)
+                                                today = datetime.date.today()
+                                                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                                                if 0 <= age <= 120:
+                                                    return age
+                                        except Exception:
+                                            continue
+                                return ""
 
-                            if 'IC' in df.columns:
-                                df['Age'] = df['IC'].apply(derive_age_from_ic)
+                            df['Age'] = df.apply(derive_age_from_row, axis=1)
 
                             if 'Bandar' in df.columns:
                                 unique_bandar = sorted([str(b) for b in df['Bandar'].dropna().unique() if str(b).strip() != ""])
@@ -382,9 +389,10 @@ with tab_search:
                                     if selected_bandar:
                                         df = df[df['Bandar'].astype(str).isin(selected_bandar)]
 
+                            # Explicitly hide NamaDUN along with other backend columns
                             hidden_columns = [
-                                'Age', 'nokp', 'Jastina', 'jantina', 'Jantina', 
-                                'NameDUN', 'NamaDun', 'namaDun', 'namadun', 
+                                'nokp', 'Jastina', 'jantina', 'Jantina', 
+                                'NameDUN', 'NamaDun', 'namaDun', 'namadun', 'NamaDUN',
                                 'Poskod', 'poskod', 
                                 'Bangsa', 'bangsa', 'nama_tel', 
                                 'Kodlokaliti', 'NamaParlimen', 'NamaDM', 
@@ -422,7 +430,7 @@ with tab_search:
 
 
 # =============================================================================
-# TAB 1: LIVE MALAYSIA PROPERTY NEWS (ROBUST IMAGE EXTRACTION)
+# TAB 1: LIVE MALAYSIA PROPERTY NEWS (IMPROVED RSS IMAGE PARSING)
 # =============================================================================
 with tab_news:
     st.header("📰 Live Malaysian Property News & Insights")
@@ -458,8 +466,9 @@ with tab_news:
                     if 'image' in enc.get('type', ''):
                         image_url = enc.get('href')
                         break
-            elif hasattr(entry, 'summary') and '<img' in entry.summary:
-                img_match = re.search(r'src=["\']([^"\']+)["\']', entry.summary)
+            
+            if not image_url and hasattr(entry, 'summary'):
+                img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', entry.summary, re.IGNORECASE)
                 if img_match:
                     image_url = img_match.group(1)
 
@@ -486,7 +495,7 @@ with tab_news:
 
 
 # =============================================================================
-# TAB 2: MORTGAGE, RPGT & UPFRONT FEES CALCULATOR (PDF & SOCIAL SHARE)
+# TAB 2: MORTGAGE, RPGT & UPFRONT FEES CALCULATOR
 # =============================================================================
 with tab_mortgage:
     st.header("🏦 Mortgage, RPGT & Upfront Fees Calculator")
@@ -569,154 +578,235 @@ with tab_mortgage:
             ]
             st.table(cost_table)
             
-            # PDF Generation & Social Share Options
-            st.markdown("### 📤 Export & Share Calculation")
+            # Export & WhatsApp Sharing including ALL loan info
+            st.markdown("### 📤 Share Mortgage Breakdown")
             
-            def generate_pdf_summary():
-                buffer = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-                doc = SimpleDocTemplate(buffer.name, pagesize=letter)
-                elements = []
-                styles = getSampleStyleSheet()
-                
-                elements.append(Paragraph("<b>Elite Property Hub - Financial Summary</b>", styles['Title']))
-                elements.append(Spacer(1, 12))
-                elements.append(Paragraph(f"Property Price: RM {prop_price:,.2f} | Loan Amount: RM {loan_amt:,.2f}", styles['Normal']))
-                elements.append(Paragraph(f"Estimated Monthly Installment: RM {m_pay:,.2f}", styles['Normal']))
-                elements.append(Paragraph(f"Total Upfront Cash Needed: RM {total_upfront_cash:,.2f}", styles['Normal']))
-                elements.append(Spacer(1, 12))
-                
-                table_data = [["Cost Item", "Amount (RM)"]] + [[item["Cost Item"], item["Amount (RM)"]] for item in cost_table]
-                t = Table(table_data, colWidths=[280, 200])
-                t.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2E4053')),
-                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                    ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                    ('BOTTOMPADDING', (0,0), (-1,0), 6),
-                    ('GRID', (0,0), (-1,-1), 0.5, colors.grey)
-                ]))
-                elements.append(t)
-                doc.build(elements)
-                buffer.seek(0)
-                return buffer.name
+            full_share_msg = f"""*Elite Property Financing Assessment*
+----------------------------------------
+• Property Price: RM {prop_price:,.2f}
+• Bank Profile: {selected_bank}
+• Financing Scheme: {financing_scheme}
+• Interest Rate: {interest_rate:.2f}% p.a.
+• Margin of Finance: {margin_finance:.1f}%
+• Loan Tenure: {loan_tenure} Years
+• Loan Amount: RM {loan_amt:,.2f}
+----------------------------------------
+*ESTIMATED MONTHLY INSTALLMENT:* RM {m_pay:,.2f}
+*TOTAL UPFRONT CASH NEEDED:* RM {total_upfront_cash:,.2f}
 
-            if st.button("📄 Generate PDF Summary Report"):
-                pdf_path = generate_pdf_summary()
-                with open(pdf_path, "rb") as f:
-                    st.download_button("📥 Download PDF Report", f, file_name="Elite_Property_Financial_Summary.pdf", mime="application/pdf")
-
-            share_text = f"Property Financing Summary:%0APrice: RM {prop_price:,.2f}%0AMonthly Installment: RM {m_pay:,.2f}%0AUpfront Cash Needed: RM {total_upfront_cash:,.2f}"
-            wa_share_url = f"https://wa.me/?text={share_text}"
-            st.markdown(f'<a href="{wa_share_url}" target="_blank"><button style="background-color:#25D366; color:white; padding:8px 16px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Share via WhatsApp</button></a>', unsafe_allow_html=True)
+*UPFRONT COST BREAKDOWN:*
+- Downpayment: RM {downpayment:,.2f}
+- SPA Legal Fee: RM {spa_legal:,.2f}
+- Loan Legal Fee: RM {loan_legal:,.2f}
+- MOT Stamp Duty: RM {mot_sd:,.2f}
+- Loan Stamp Duty: RM {loan_sd:,.2f}
+- SST & Disbursements: RM {sst_disb:,.2f}
+"""
+            wa_mortgage_url = f"https://wa.me/?text={full_share_msg.replace(' ', '%20').replace('\n', '%0A')}"
+            st.markdown(f'<a href="{wa_mortgage_url}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Share Complete Assessment on WhatsApp</button></a>', unsafe_allow_html=True)
 
     with calc_sub_tab2:
         st.subheader("🏷️ Real Property Gains Tax (RPGT) Calculator")
-        st.caption("Calculate RPGT liability based on holding period and citizenship/entity category.")
         
         r_col1, r_col2 = st.columns(2)
         with r_col1:
             acq_price = st.number_input("Acquisition Price (RM)", min_value=10000, value=500000, step=10000)
-            disp_price = st.number_input("Disposal Selling Price (RM)", min_value=10000, value=700000, step=10000)
-            incidental_costs = st.number_input("Incidental Costs (Legal fees, renovation, agent fees) (RM)", min_value=0, value=15000, step=1000)
-            holding_years = st.slider("Holding Period (Years)", min_value=0, max_value=15, value=3, step=1)
+            disp_price = st.number_input("Disposal Selling Price (RM)", min_value=10000, value=750000, step=10000)
+            
+            # Acquisition Month/Year Inputs
+            acq_col_m, acq_col_y = st.columns(2)
+            with acq_col_m:
+                acq_month = st.selectbox("Acquisition Month", list(range(1, 13)), index=0)
+            with acq_col_y:
+                acq_year = st.number_input("Acquisition Year", min_value=1970, max_value=current_year, value=2021)
+                
+            is_over_5_years = st.checkbox("Property holding period is explicitly over 5 years", value=((current_year - acq_year) >= 5))
+            
+            # Auto-calculate agent fees based on selection rate
+            agent_fee_rate = st.slider("Select Real Estate Agent Commission Rate (%)", min_value=0.0, max_value=3.0, value=3.0, step=0.5)
+            auto_agent_fee = disp_price * (agent_fee_rate / 100.0)
+            st.info(f"Auto-calculated Agent Fee ({agent_fee_rate}%): RM {auto_agent_fee:,.2f}")
+            
+            other_incidental_costs = st.number_input("Other Incidental Costs (Legal, Stamp Duty, Renovation) (RM)", min_value=0, value=15000, step=1000)
+            total_incidental = auto_agent_fee + other_incidental_costs
+            
             disposer_type = st.selectbox("Disposer Category", ["Malaysian Citizen / PR", "Company", "Foreigner (Non-Citizen / Non-PR)"])
 
-        net_gain = max(0.0, disp_price - acq_price - incidental_costs)
+        net_gain = max(0.0, disp_price - acq_price - total_incidental)
+        holding_years = 6 if is_over_5_years else max(1, current_year - acq_year)
         
-        # RPGT Tax Rates Logic
+        # RPGT Tax Scale Rates
         if disposer_type == "Foreigner (Non-Citizen / Non-PR)":
             rpgt_rate = 10.0 if holding_years > 5 else 30.0
         elif disposer_type == "Company":
-            if holding_years <= 3: rpgt_rate = 15.0
-            elif holding_years == 4: rpgt_rate = 15.0
-            elif holding_years == 5: rpgt_rate = 10.0
-            else: rpgt_rate = 5.0
-        else: # Malaysian Citizen / PR
             if holding_years <= 3: rpgt_rate = 30.0
             elif holding_years == 4: rpgt_rate = 20.0
             elif holding_years == 5: rpgt_rate = 15.0
-            else: rpgt_rate = 0.0 # 0% after 5 years for citizens
+            else: rpgt_rate = 10.0
+        else: # Citizen / PR
+            if holding_years <= 3: rpgt_rate = 30.0
+            elif holding_years == 4: rpgt_rate = 20.0
+            elif holding_years == 5: rpgt_rate = 15.0
+            else: rpgt_rate = 0.0
 
         rpgt_payable = net_gain * (rpgt_rate / 100.0)
 
         with r_col2:
-            st.metric("Net Realized Gain", f"RM {net_gain:,.2f}")
-            st.metric("Applicable RPGT Rate", f"{rpgt_rate:.1f}%")
-            st.metric("Total RPGT Tax Payable", f"RM {rpgt_payable:,.2f}")
+            st.metric("Net Realized Capital Gain", f"RM {net_gain:,.2f}")
+            st.metric("Applicable RPGT Tax Rate", f"{rpgt_rate:.1f}%")
+            st.metric("Total RPGT Tax Liability", f"RM {rpgt_payable:,.2f}")
             
-            st.markdown("""
-            > **Note:** Malaysian citizens are entitled to a once-in-a-lifetime RPGT exemption on the disposal of a private residential property.
-            """)
+            rpgt_summary_msg = f"""*RPGT Calculation Summary*
+----------------------------------------
+• Acquisition: {acq_month}/{acq_year} (Price: RM {acq_price:,.2f})
+• Disposal Price: RM {disp_price:,.2f}
+• Agent Commission ({agent_fee_rate}%): RM {auto_agent_fee:,.2f}
+• Other Deductible Expenses: RM {other_incidental_costs:,.2f}
+• Category: {disposer_type}
+----------------------------------------
+*Net Capital Gain:* RM {net_gain:,.2f}
+*Applicable RPGT Rate:* {rpgt_rate:.1f}%
+*RPGT TAX PAYABLE:* RM {rpgt_payable:,.2f}
+"""
+            wa_rpgt_url = f"https://wa.me/?text={rpgt_summary_msg.replace(' ', '%20').replace('\n', '%0A')}"
+            st.markdown(f'<a href="{wa_rpgt_url}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Share RPGT Summary on WhatsApp</button></a>', unsafe_allow_html=True)
 
 
 # =============================================================================
-# TAB 3: TENANCY STAMP DUTY CALCULATOR
+# TAB 3: TENANCY STAMP DUTY CALCULATOR (DUPLICATE COPY & LATE PENALTY INFO)
 # =============================================================================
 with tab_tenancy:
     st.header("📜 Tenancy Agreement Stamp Duty Calculator")
-    m_rent = st.number_input("Monthly Rental Amount (RM)", min_value=100, value=2500, step=100)
-    lease_term = st.selectbox("Lease Duration", ["1 Year or less", "1 to 3 Years", "3 to 5 Years", "Above 5 Years"])
-    annual_r = m_rent * 12
-    units = math.ceil(annual_r / 250)
-    rate = 1.0 if "1 Year" in lease_term else (3.0 if "1 to 3" in lease_term else (5.0 if "3 to 5" in lease_term else 7.0))
-    st.metric("Total LHDN Stamp Duty Payable", f"RM {max(10, units * rate):,.2f}")
+    
+    t_col1, t_col2 = st.columns(2)
+    with t_col1:
+        m_rent = st.number_input("Monthly Rental Amount (RM)", min_value=100, value=2500, step=100)
+        lease_term = st.selectbox("Lease Duration", ["1 Year or less", "1 to 3 Years", "3 to 5 Years", "Above 5 Years"])
+        duplicate_copies = st.number_input("Number of Duplicate Copies (RM 10 per copy)", min_value=0, value=1, step=1)
+        
+        annual_r = m_rent * 12
+        units = math.ceil(annual_r / 250)
+        rate = 1.0 if "1 Year" in lease_term else (3.0 if "1 to 3" in lease_term else (5.0 if "3 to 5" in lease_term else 7.0))
+        
+        original_stamp_duty = max(10.0, units * rate)
+        duplicate_cost = duplicate_copies * 10.0
+        total_tenancy_duty = original_stamp_duty + duplicate_cost
 
+    with t_col2:
+        st.metric("Original Stamp Duty Fee", f"RM {original_stamp_duty:,.2f}")
+        st.metric("Duplicate Copies Fee", f"RM {duplicate_cost:,.2f}")
+        st.metric("Total LHDN Payment Required", f"RM {total_tenancy_duty:,.2f}")
 
-# =============================================================================
-# TAB 4: MALAYSIA BUDGET 2027 REAL ESTATE HIGHLIGHTS
-# =============================================================================
-with tab_budget:
-    st.header(f"📊 Malaysia Budget 2027 Real Estate & Housing Policy Summary")
+    st.markdown("---")
     st.markdown("""
-    * **First-Time Homebuyer Incentives:** Continued 100% Stamp Duty Exemption on MOT and Loan Agreements for residential properties priced **up to RM500,000**.
-    * **SJKP Housing Credit Guarantee:** Expanded funding pool up to **RM20 Billion** to assist gig-workers, freelancers, and non-fixed income earners in securing 100% home financing.
-    * **RPGT Adjustments:** Retention of competitive Real Property Gains Tax structures (0% for individual citizens after 5 years; 10%-30% for foreigners and speculative short-term disposals).
-    * **Commercial-to-Residential Conversion:** Extended tax deductions for adaptive reuse and conversion of idle commercial office complexes into residential or mixed-use housing.
+    ### ⚠️ LHDN Late Stamping Penalty Reference
+    Tenancy agreements must be submitted for stamping within **30 days** of execution (or within 30 days of arrival in Malaysia if executed abroad).
+    
+    * **Stamped within 3 months late:** **RM 25.00** or **5%** of the deficient duty (whichever is higher).
+    * **Stamped between 3 to 6 months late:** **RM 50.00** or **10%** of the deficient duty (whichever is higher).
+    * **Stamped after 6 months late:** **RM 100.00** or **20%** of the deficient duty (whichever is higher).
     """)
 
 
 # =============================================================================
-# TAB 5: PROFESSIONAL SCALE RATES REFERENCE
+# TAB 4: MALAYSIA BUDGET HIGHLIGHTS (MULTI-YEAR SELECTOR)
+# =============================================================================
+with tab_budget:
+    st.header("📊 Malaysia Budget Real Estate & Property Policy Archive")
+    
+    selected_budget_year = st.selectbox("Select Malaysia Budget Year:", ["2027", "2026", "2025", "2024"], index=0)
+    
+    if selected_budget_year == "2027":
+        st.markdown("""
+        ### 🇲🇾 Malaysia Budget 2027 Key Property Highlights
+        * **First-Time Homebuyer Incentives:** Continued 100% Stamp Duty Exemption on MOT and Loan Agreements for homes priced **up to RM500,000**.
+        * **SJKP Housing Guarantee Scheme:** Expanded government guarantee limit up to **RM20 Billion** for gig-economy professionals and self-employed buyers.
+        * **RPGT Policies:** Maintained 0% RPGT for individual citizens disposing of residential homes held for over 5 years.
+        * **Urban Redevelopment:** Tax relief for commercial-to-residential adaptive reuse projects in urban city centres.
+        """)
+    elif selected_budget_year == "2026":
+        st.markdown("""
+        ### 🇲🇾 Malaysia Budget 2026 Summary
+        * Full MOT stamp duty exemptions for residential property under RM500k.
+        * Expanded SJKP liquidity facilities up to RM10 Billion.
+        """)
+    else:
+        st.markdown(f"### 🇲🇾 Malaysia Budget {selected_budget_year} Highlights\nStandard housing subsidy schemes and stamp duty exemptions applied.")
+
+
+# =============================================================================
+# TAB 5: STATUTORY SCALE RATES & LEGAL QUOTATION GENERATOR (SRO 2023)
 # =============================================================================
 with tab_fees:
-    st.header("⚖️ Official Professional Scale Rates (Malaysia)")
-    st.caption("Statutory fee scales for real estate agents, property valuers, and conveyancing lawyers.")
+    st.header("⚖️ Official Scale Rates & Legal Quotation Engine")
+    
+    f_sub1, f_sub2 = st.tabs(["📜 Legal & Conveyancing Quotation Generator (SRO 2023)", "🏢 Statutory Fee Scales (BOVAEP & Valuers)"])
+    
+    with f_sub1:
+        st.subheader("📝 Complete SPA & Loan Legal Fee Quotation Generator")
+        
+        q_col1, q_col2 = st.columns(2)
+        with q_col1:
+            q_price = st.number_input("Property Sale Price (RM)", min_value=100000, value=600000, step=50000)
+            q_loan = st.number_input("Loan Financing Amount (RM)", min_value=0, value=540000, step=50000)
+            
+            # SRO 2023 Legal Scale Fee
+            def calc_sro_2023(price):
+                if price <= 500000:
+                    return max(500, price * 0.0125)
+                elif price <= 7500000:
+                    return 6250 + ((price - 500000) * 0.01)
+                else:
+                    return 76250 + ((price - 7500000) * 0.005)
 
-    fee_tab1, fee_tab2, fee_tab3 = st.tabs(["🏢 Real Estate Agents (EAA / BOVAEP)", "📐 Property Valuers", "📜 Legal & Conveyancing (SRO 2023)"])
+            spa_legal_q = calc_sro_2023(q_price)
+            loan_legal_q = calc_sro_2023(q_loan) if q_loan > 0 else 0.0
+            
+            def calc_mot_q(price):
+                if price <= 100000: return price * 0.01
+                elif price <= 500000: return 1000 + (price - 100000) * 0.02
+                elif price <= 1000000: return 9000 + (price - 500000) * 0.03
+                else: return 24000 + (price - 1000000) * 0.04
 
-    with fee_tab1:
-        st.subheader("Real Estate Agency Commission Scale (BOVAEP)")
+            mot_sd_q = calc_mot_q(q_price)
+            loan_sd_q = q_loan * 0.005
+            
+            land_search = 150.0
+            bankruptcy_search = 100.0
+            disbursements = 1500.0
+            sst_8_percent = (spa_legal_q + loan_legal_q) * 0.08
+            
+            grand_total_legal = spa_legal_q + loan_legal_q + mot_sd_q + loan_sd_q + land_search + bankruptcy_search + disbursements + sst_8_percent
+
+        with q_col2:
+            st.markdown("### Itemized Quotation Breakdown")
+            q_data = [
+                {"Item Description": "SPA Scale Legal Fee (SRO 2023)", "Amount (RM)": f"RM {spa_legal_q:,.2f}"},
+                {"Item Description": "Loan Agreement Legal Fee", "Amount (RM)": f"RM {loan_legal_q:,.2f}"},
+                {"Item Description": "MOT Stamp Duty (Transfer)", "Amount (RM)": f"RM {mot_sd_q:,.2f}"},
+                {"Item Description": "Loan Agreement Stamp Duty", "Amount (RM)": f"RM {loan_sd_q:,.2f}"},
+                {"Item Description": "Land Search & Title Registration", "Amount (RM)": f"RM {land_search:,.2f}"},
+                {"Item Description": "Bankruptcy / Insolvency Searches", "Amount (RM)": f"RM {bankruptcy_search:,.2f}"},
+                {"Item Description": "Miscellaneous Disbursements", "Amount (RM)": f"RM {disbursements:,.2f}"},
+                {"Item Description": "SST (8% on Professional Legal Fees)", "Amount (RM)": f"RM {sst_8_percent:,.2f}"},
+                {"Item Description": "GRAND TOTAL ESTIMATED QUOTATION", "Amount (RM)": f"RM {grand_total_legal:,.2f}"}
+            ]
+            st.table(q_data)
+
+    with f_sub2:
+        st.subheader("Official BOVAEP Fee Scale (LPEPH Seventh Schedule)")
         st.markdown("""
-        * **Land & Buildings (Sale / Purchase):**
-          * First RM 500,000: **3.0%**
-          * Next RM 500,000: **2.5%**
-          * Next RM 1,000,000: **2.0%**
-          * Subsequent amounts: **1.5%** (Maximum cap 3%)
-        * **Tenancies / Rentals:**
-          * Not exceeding 1 year: **1.25 months gross rental**
-          * 1 to 2 years: **1.50 months gross rental**
-          * 2 to 3 years: **1.75 months gross rental**
-        """)
-
-    with fee_tab2:
-        st.subheader("Property Valuation Fee Scale (BOVAEP)")
-        st.markdown("""
-        * **Land, Buildings, Plant & Machinery:**
-          * First RM 100,000: **0.5%** (Min RM 400)
-          * Next RM 2,000,000: **0.4%**
-          * Next RM 5,000,000: **0.3%**
-          * Next RM 10,000,000: **0.2%**
-          * Thereafter: **0.1%**
-        """)
-
-    with fee_tab3:
-        st.subheader("Sale & Purchase Agreement (SPA) Legal Fees (SRO 2023)")
-        st.markdown("""
-        * First RM 500,000: **1.25%** (Min RM 500)
-        * Next RM 500,000: **1.0%**
-        * Next RM 2,000,000: **0.75%**
-        * Next RM 2,000,000: **0.5%**
-        * Excess over RM 5,000,000: **Negotiable (Max 0.5%)**
+        *Source: Official Board of Valuers, Appraisers, Estate Agents and Property Managers (lpeph.gov.my/fees)*
+        
+        #### 1. Estate Agency Scale Fees (Sales & Purchases)
+        * Maximum Cap: **3.0%** of property transacted price.
+        * Minimum Fee: **RM 1,000** per property.
+        
+        #### 2. Lettings & Tenancies Scale Fees
+        * Tenancies up to 3 years: **Up to 1.25 months gross rent**
+        * Exceeding 3 years up to 4 years: **Up to 1.50 months gross rent**
+        * Exceeding 4 years up to 5 years: **Up to 1.75 months gross rent**
+        * Minimum Fee: **1 month gross rent**
         """)
 
 
