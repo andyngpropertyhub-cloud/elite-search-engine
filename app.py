@@ -14,6 +14,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+import urllib.parse
 
 # -----------------------------------------------------------------------------
 # 1. Page Configuration (MUST BE FIRST STREAMLIT CALL)
@@ -605,9 +606,11 @@ with tab_mortgage:
                 f"*GRAND TOTAL REQUIRED:* RM {total_upfront_cash:,.2f}"
             )
             
-            # URL Encode string safely for WhatsApp Web / Mobile API
-            encoded_msg = base64.b64encode(full_share_msg.encode('utf-8')).decode('utf-8')
-            wa_mortgage_url = f"https://api.whatsapp.com/send?text={import_urllib_parse(full_share_msg)}"
+            import urllib.parse
+            encoded_msg = urllib.parse.quote(full_share_msg)
+            wa_mortgage_url = f"https://wa.me/?text={encoded_msg}"
+            
+            st.markdown(f'<a href="{wa_mortgage_url}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Share Complete Assessment on WhatsApp</button></a>', unsafe_allow_html=True)
 
     with calc_sub_tab2:
         st.subheader("🏷️ Real Property Gains Tax (RPGT) Calculator")
