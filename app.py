@@ -742,27 +742,29 @@ with tab_budget:
 
 
 # =============================================================================
-# TAB 5: STATUTORY SCALE RATES & LEGAL QUOTATION GENERATOR (SRO 2023)
+# TAB 5: STATUTORY SCALE RATES, LEGAL & VALUATION QUOTATION ENGINE
 # =============================================================================
 with tab_fees:
-    st.header("⚖️ Official Scale Rates & Legal Quotation Engine")
+    st.header("⚖️ Official Scale Rates & Professional Quotation Engines")
     
-    f_sub1, f_sub2 = st.tabs(["📜 Legal & Conveyancing Quotation Generator (SRO 2023)", "🏢 Statutory Fee Scales (BOVAEP & Valuers)"])
+    f_sub1, f_sub2, f_sub3 = st.tabs([
+        "📜 Legal & Conveyancing Quotation", 
+        "📐 Valuation Quotation Generator", 
+        "🏢 Statutory Fee Scales (BOVAEP & Valuers)"
+    ])
     
     with f_sub1:
         st.subheader("📝 Complete SPA & Loan Legal Fee Quotation Generator")
         
         q_col1, q_col2 = st.columns(2)
         with q_col1:
-            q_price = st.number_input("Property Sale Price (RM)", min_value=100000, value=600000, step=50000)
-            q_loan = st.number_input("Loan Financing Amount (RM)", min_value=0, value=540000, step=50000)
+            q_price = st.number_input("Property Sale Price (RM)", min_value=100000, value=600000, step=50000, key="legal_q_price")
+            q_loan = st.number_input("Loan Financing Amount (RM)", min_value=0, value=540000, step=50000, key="legal_q_loan")
             
-            # Interactive Property Parameters
-            prop_tenure = st.selectbox("Property Tenure", ["Freehold", "Leasehold"])
-            prop_encumbrance = st.selectbox("Encumbrance Status", ["Charged (With Bank Encumbrance / Redemption needed)", "Free from Encumbrances"])
-            prop_title_type = st.selectbox("Property Title Type", ["Individual Title", "Strata Title", "Master Title (Under Developer)"])
+            prop_tenure = st.selectbox("Property Tenure", ["Freehold", "Leasehold"], key="legal_tenure")
+            prop_encumbrance = st.selectbox("Encumbrance Status", ["Charged (With Bank Encumbrance / Redemption needed)", "Free from Encumbrances"], key="legal_enc")
+            prop_title_type = st.selectbox("Property Title Type", ["Individual Title", "Strata Title", "Master Title (Under Developer)"], key="legal_title")
             
-            # SRO 2023 Legal Scale Fee Calculation
             def calc_sro_2023(price):
                 if price <= 500000:
                     return max(500, price * 0.0125)
@@ -783,20 +785,18 @@ with tab_fees:
             mot_sd_q = calc_mot_q(q_price)
             loan_sd_q = q_loan * 0.005
             
-            # Additional Charges based on Title & Tenure Selection
             leasehold_consent_fee = 500.0 if prop_tenure == "Leasehold" else 0.0
             discharge_charge_fee = 400.0 if "Charged" in prop_encumbrance else 0.0
             master_title_fee = 350.0 if prop_title_type == "Master Title (Under Developer)" else 0.0
             
-            # Standard Disbursements & RPGT Retention Calculation
             land_search = 150.0
             bankruptcy_search = 100.0
-            adjudication_ckht = 200.0  # LHDN Adjudication & CKHT Filing
+            adjudication_ckht = 200.0
             statutory_decl = 100.0
-            misc_disbursements = 1200.0  # Printing, Courier & Travelling
+            misc_disbursements = 1200.0
             
             sst_8_percent = (spa_legal_q + loan_legal_q + leasehold_consent_fee + discharge_charge_fee) * 0.08
-            rpgt_retention_3pct = q_price * 0.03  # Statutory 3% RPGT Retention withheld by buyer's solicitor
+            rpgt_retention_3pct = q_price * 0.03
             
             grand_total_legal = (
                 spa_legal_q + loan_legal_q + mot_sd_q + loan_sd_q + 
@@ -809,7 +809,7 @@ with tab_fees:
             st.markdown("### Itemized Quotation Breakdown")
             q_data = [
                 {"Item Description": "SPA Scale Legal Fee (SRO 2023)", "Amount (RM)": f"RM {spa_legal_q:,.2f}"},
-                {"Item Description": "Loan Agreement Legal Fee (SRO 2023)", "Amount (RM)": f"RM {loan_legal_q:,.2f}"},
+                {"Item Description": "Loan Agreement Legal Fee", "Amount (RM)": f"RM {loan_legal_q:,.2f}"},
                 {"Item Description": "MOT / Transfer Stamp Duty", "Amount (RM)": f"RM {mot_sd_q:,.2f}"},
                 {"Item Description": "Loan Agreement Stamp Duty", "Amount (RM)": f"RM {loan_sd_q:,.2f}"},
                 {"Item Description": "Leasehold Consent Legal Charges", "Amount (RM)": f"RM {leasehold_consent_fee:,.2f}"},
@@ -824,14 +824,10 @@ with tab_fees:
                 {"Item Description": "ESTIMATED TOTAL LEGAL COST", "Amount (RM)": f"RM {grand_total_legal:,.2f}"}
             ]
             st.table(q_data)
-            
             st.info(f"💡 **Statutory 3% RPGT Retention Sum (Withheld by Buyer's Solicitor):** RM {rpgt_retention_3pct:,.2f}")
-            
             st.caption("📌 *Remark: This quotation is an estimated guideline based on standard SRO 2023 scale rates. Actual legal fees and disbursements may vary across different legal firms.*")
             
-            # WhatsApp Sharing Code
             import urllib.parse
-            
             quote_wa_msg = f"""*ESTIMATED LEGAL & CONVEYANCING QUOTATION*
 ----------------------------------------
 • Property Price: RM {q_price:,.2f}
@@ -850,15 +846,71 @@ with tab_fees:
 - SST (8%): RM {sst_8_percent:,.2f}
 ----------------------------------------
 *ESTIMATED TOTAL LEGAL FEES:* RM {grand_total_legal:,.2f}
-*3% RPGT RETENTION WITHHELD:* RM {rpgt_retention_3pct:,.2f}
+*3% RPGT RETENTION WITHHELD:* RM {rpgt_retention_3pct:,.2f}"""
 
-_Remark: This is an estimated cost and may vary depending on the selected law firm._"""
-
-            encoded_quote_msg = urllib.parse.quote(quote_wa_msg)
-            wa_quote_url = f"https://wa.me/?text={encoded_quote_msg}"
-            st.markdown(f'<a href="{wa_quote_url}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Share Legal Quotation on WhatsApp</button></a>', unsafe_allow_html=True)
+            st.markdown(f'<a href="https://wa.me/?text={urllib.parse.quote(quote_wa_msg)}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Share Legal Quotation on WhatsApp</button></a>', unsafe_allow_html=True)
 
     with f_sub2:
+        st.subheader("📐 Professional Property Valuation Quotation Generator")
+        st.caption("Official statutory scale rates by BOVAEP for property valuation services.")
+        
+        v_col1, v_col2 = st.columns(2)
+        with v_col1:
+            val_prop_val = st.number_input("Estimated Property Market Value (RM)", min_value=50000, value=600000, step=50000)
+            val_prop_type = st.selectbox("Property Type", ["Residential (Terrace / Condo / Bungalow)", "Commercial (Shoplot / Office)", "Industrial Land / Factory", "Plant & Machinery"])
+            val_purpose = st.selectbox("Valuation Purpose", ["Bank Mortgage Loan", "Stamp Duty / MOT Assessment", "Asset Valuation / Corporate Accounting", "Sub-sale Market Valuation"])
+            
+            # BOVAEP Valuation Scale Fee Logic
+            def calc_val_fee(val):
+                fee = 0.0
+                if val <= 100000:
+                    fee = max(400, val * 0.005)
+                elif val <= 2100000:
+                    fee = 500 + (val - 100000) * 0.004
+                elif val <= 7100000:
+                    fee = 8500 + (val - 2100000) * 0.003
+                elif val <= 17100000:
+                    fee = 23500 + (val - 7100000) * 0.002
+                else:
+                    fee = 43500 + (val - 17100000) * 0.001
+                return fee
+
+            base_val_fee = calc_val_fee(val_prop_val)
+            val_disbursements = 300.0  # Official land search, transport & admin
+            val_sst = base_val_fee * 0.08
+            total_val_fee = base_val_fee + val_disbursements + val_sst
+
+        with v_col2:
+            st.markdown("### Itemized Valuation Quotation")
+            val_table_data = [
+                {"Item Description": "Professional Valuation Fee (BOVAEP Scale)", "Amount (RM)": f"RM {base_val_fee:,.2f}"},
+                {"Item Description": "Official Search, Transport & Disbursements", "Amount (RM)": f"RM {val_disbursements:,.2f}"},
+                {"Item Description": "SST (8% Service Tax on Professional Fee)", "Amount (RM)": f"RM {val_sst:,.2f}"},
+                {"Item Description": "TOTAL ESTIMATED VALUATION FEE", "Amount (RM)": f"RM {total_val_fee:,.2f}"}
+            ]
+            st.table(val_table_data)
+            
+            st.info("💡 **Need official valuation service?** Click below to connect with **Tony Chin** (`+60123718228`). This quotation will be sent directly to him for review.")
+            
+            val_wa_msg = f"""*OFFICIAL PROPERTY VALUATION QUOTATION REQUEST*
+----------------------------------------
+• Target Valued Property: RM {val_prop_val:,.2f}
+• Property Type: {val_prop_type}
+• Valuation Purpose: {val_purpose}
+----------------------------------------
+*VALUATION FEE BREAKDOWN:*
+- Professional Fee (BOVAEP Scale): RM {base_val_fee:,.2f}
+- Disbursements & Searches: RM {val_disbursements:,.2f}
+- SST (8%): RM {val_sst:,.2f}
+----------------------------------------
+*TOTAL ESTIMATED QUOTATION:* RM {total_val_fee:,.2f}
+
+_Hello Tony Chin, I would like to engage your professional valuation services based on the above quotation._"""
+
+            tony_phone = "60123718228"
+            st.markdown(f'<a href="https://wa.me/{tony_phone}?text={urllib.parse.quote(val_wa_msg)}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Send Quotation to Tony Chin via WhatsApp</button></a>', unsafe_allow_html=True)
+
+    with f_sub3:
         st.subheader("Official BOVAEP Fee Scale (LPEPH Seventh Schedule)")
         st.markdown("""
         *Source: Official Board of Valuers, Appraisers, Estate Agents and Property Managers (lpeph.gov.my/fees)*
