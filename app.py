@@ -30,19 +30,33 @@ st.set_page_config(
 # -----------------------------------------------------------------------------
 # 2. Initialize Session State
 # -----------------------------------------------------------------------------
+
+USER_DB_FILE = "users_db.json"
+
+# Load users from file if it exists, otherwise use default dictionary
 if "users" not in st.session_state:
-    st.session_state["users"] = {
-        "admin": "admin123",
-        "rex": "rex123",
-        "daniel": "daniel123",
-        "eric": "eric123",
-        "alex": "alex123",
-        "tommy": "tommy123",
-        "kokhing": "kokhing123",
-        "tony": "tony123",
-        "user1": "pass123",
-        "user2": "pass123"
-    }
+    if os.path.exists(USER_DB_FILE):
+        try:
+            with open(USER_DB_FILE, "r") as f:
+                st.session_state["users"] = json.load(f)
+        except Exception:
+            st.session_state["users"] = {}
+    else:
+        st.session_state["users"] = {
+            "admin": "admin123",
+            "rex": "rex123",
+            "daniel": "daniel123",
+            "eric": "eric123",
+            "alex": "alex123",
+            "tommy": "tommy123",
+            "kokhing": "kokhing123",
+            "tony": "tony123",
+            "user1": "pass123",
+            "user2": "pass123"
+        }
+        # Save default to file
+        with open(USER_DB_FILE, "w") as f:
+            json.dump(st.session_state["users"], f)
 
 if "quotas" not in st.session_state:
     st.session_state["quotas"] = {u: (99999 if u == "admin" else 500) for u in st.session_state["users"]}
@@ -231,7 +245,12 @@ with tab_search:
                             st.session_state["users"][nu] = npw
                             st.session_state["quotas"][nu] = n_quota
                             st.session_state["usage"][nu] = 0
-                            st.success(f"User '{nu}' created successfully!")
+                            
+                            # Save permanently to JSON file
+                            with open(USER_DB_FILE, "w") as f:
+                                json.dump(st.session_state["users"], f)
+                                
+                            st.success(f"User '{nu}' created and saved successfully!")
                             st.rerun()
 
                 with admin_tab3:
